@@ -44,3 +44,6 @@ CREATE POLICY "Allow public insert access on daily_reports" ON daily_reports
 
 CREATE POLICY "Allow public update access on daily_reports" ON daily_reports
     FOR UPDATE USING (true);
+
+CREATE POLICY "Allow public delete access on daily_reports" ON daily_reports
+    FOR DELETE USING (true);

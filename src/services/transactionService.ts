@@ -10,6 +10,7 @@ interface DbTransaction {
     transaction_type: 'Income' | 'Expense';
     category: string;
     icon: string;
+    payment_method?: string;
     transaction_date: string;
     transaction_time: string;
     created_at: string;
@@ -63,6 +64,7 @@ function dbToTransaction(db: DbTransaction): Transaction {
         amount: db.amount,
         type: db.transaction_type,
         category: db.category,
+        paymentMethod: db.payment_method,
         time: timeDisplay,
         icon: db.icon,
     };
@@ -138,6 +140,7 @@ export async function createTransaction(transaction: {
     type: 'Income' | 'Expense';
     category: string;
     icon?: string;
+    paymentMethod?: string;
 }): Promise<Transaction> {
     const now = new Date();
 
@@ -149,6 +152,7 @@ export async function createTransaction(transaction: {
             transaction_type: transaction.type,
             category: transaction.category,
             icon: transaction.icon || 'receipt',
+            payment_method: transaction.paymentMethod,
             transaction_date: now.toISOString().split('T')[0],
             transaction_time: now.toTimeString().slice(0, 5),
         })
@@ -166,7 +170,7 @@ export async function createTransaction(transaction: {
 /**
  * 添加支出
  */
-export async function addExpense(name: string, amount: number, category: string): Promise<Transaction> {
+export async function addExpense(name: string, amount: number, category: string, paymentMethod?: string): Promise<Transaction> {
     // 根据分类确定图标
     const iconMap: Record<string, string> = {
         '餐饮': 'lunch_dining',
@@ -180,6 +184,7 @@ export async function addExpense(name: string, amount: number, category: string)
         amount,
         type: 'Expense',
         category,
+        paymentMethod,
         icon: iconMap[category] || 'receipt',
     });
 }
@@ -256,6 +261,50 @@ export async function deleteTransaction(id: string): Promise<void> {
 
     if (error) {
         console.error('删除交易记录失败:', error.message);
+        throw error;
+    }
+}
+
+/**
+ * 批量删除交易记录
+ */
+export async function deleteTransactions(ids: string[]): Promise<void> {
+    const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .in('id', ids);
+
+    if (error) {
+        console.error('批量删除交易记录失败:', error.message);
+        throw error;
+    }
+}
+
+/**
+ * 更新交易记录
+ */
+export async function updateTransaction(id: string, updates: {
+    name?: string;
+    amount?: number;
+    category?: string;
+    icon?: string;
+}): Promise<void> {
+    const dataToUpdate: any = { ...updates };
+    if (updates.amount !== undefined) {
+        // 保持金额正负号逻辑
+        const { data: current } = await supabase.from('transactions').select('transaction_type').eq('id', id).single();
+        if (current) {
+            dataToUpdate.amount = current.transaction_type === 'Expense' ? -Math.abs(updates.amount) : Math.abs(updates.amount);
+        }
+    }
+
+    const { error } = await supabase
+        .from('transactions')
+        .update(dataToUpdate)
+        .eq('id', id);
+
+    if (error) {
+        console.error('更新交易记录失败:', error.message);
         throw error;
     }
 }

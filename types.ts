@@ -22,6 +22,7 @@ export interface Transaction {
   amount: number;
   type: 'Income' | 'Expense';
   category: string;
+  paymentMethod?: string;
   time: string;
   icon: string;
 }

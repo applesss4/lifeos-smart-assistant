@@ -143,3 +143,18 @@ export async function isTodayReportArchived(): Promise<boolean> {
     const report = await getDailyReport(today);
     return report !== null;
 }
+
+/**
+ * 删除日报存档
+ */
+export async function deleteDailyReport(id: string): Promise<void> {
+    const { error } = await supabase
+        .from('daily_reports')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        console.error('删除日报失败:', error.message);
+        throw error;
+    }
+}

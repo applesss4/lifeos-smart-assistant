@@ -12,6 +12,7 @@ const Tasks: React.FC<TasksProps> = ({ onNotify }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [isCalendarMode, setIsCalendarMode] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [isCompletedCollapsed, setIsCompletedCollapsed] = useState(false);
 
   // New task form state
   const [newTaskTitle, setNewTaskTitle] = useState('');
@@ -91,11 +92,21 @@ const Tasks: React.FC<TasksProps> = ({ onNotify }) => {
 
         return (
           <div key={sec} className="space-y-3">
-            <h3 className={`font-bold text-lg dark:text-white flex items-center gap-2 ${sec === '已完成' ? 'opacity-50' : ''}`}>
-              {sec}
-              {sec === '今日' && <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded-full">{sectionTasks.length}</span>}
+            <h3
+              onClick={() => sec === '已完成' && setIsCompletedCollapsed(!isCompletedCollapsed)}
+              className={`font-bold text-lg dark:text-white flex items-center justify-between cursor-pointer ${sec === '已完成' ? 'opacity-50' : ''}`}
+            >
+              <div className="flex items-center gap-2">
+                {sec}
+                {sec === '今日' && <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded-full">{sectionTasks.length}</span>}
+              </div>
+              {sec === '已完成' && (
+                <span className="material-symbols-outlined text-gray-400 transition-transform duration-300" style={{ transform: isCompletedCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
+                  expand_more
+                </span>
+              )}
             </h3>
-            <div className="space-y-2">
+            <div className={`space-y-2 overflow-hidden transition-all duration-300 ${sec === '已完成' && isCompletedCollapsed ? 'h-0 opacity-0' : 'h-auto opacity-100'}`}>
               {sectionTasks.map(task => (
                 <div
                   key={task.id}
@@ -115,8 +126,8 @@ const Tasks: React.FC<TasksProps> = ({ onNotify }) => {
                   </div>
                   {!task.completed && (
                     <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold ${task.priority === 'High' ? 'bg-red-50 text-red-500 dark:bg-red-900/20' :
-                        task.priority === 'Medium' ? 'bg-orange-50 text-orange-500 dark:bg-orange-900/20' :
-                          'bg-emerald-50 text-emerald-500 dark:bg-emerald-900/20'
+                      task.priority === 'Medium' ? 'bg-orange-50 text-orange-500 dark:bg-orange-900/20' :
+                        'bg-emerald-50 text-emerald-500 dark:bg-emerald-900/20'
                       }`}>
                       {task.priority === 'High' ? '高' : task.priority === 'Medium' ? '中' : '低'}
                     </span>
@@ -157,8 +168,8 @@ const Tasks: React.FC<TasksProps> = ({ onNotify }) => {
                     <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-tight">{task.category}</p>
                   </div>
                   <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold ${task.priority === 'High' ? 'bg-red-50 text-red-500' :
-                      task.priority === 'Medium' ? 'bg-orange-50 text-orange-500' :
-                        'bg-emerald-50 text-emerald-500'
+                    task.priority === 'Medium' ? 'bg-orange-50 text-orange-500' :
+                      'bg-emerald-50 text-emerald-500'
                     }`}>
                     {task.priority === 'High' ? '高' : task.priority === 'Medium' ? '中' : '低'}
                   </span>
@@ -297,8 +308,8 @@ const Tasks: React.FC<TasksProps> = ({ onNotify }) => {
                         type="button"
                         onClick={() => setNewTaskPriority(p)}
                         className={`py-2 rounded-xl text-xs font-bold transition-all border-2 ${newTaskPriority === p
-                            ? 'bg-primary/10 border-primary text-primary'
-                            : 'bg-gray-50 dark:bg-gray-800 border-transparent dark:text-gray-400'
+                          ? 'bg-primary/10 border-primary text-primary'
+                          : 'bg-gray-50 dark:bg-gray-800 border-transparent dark:text-gray-400'
                           }`}
                       >
                         {p === 'High' ? '高' : p === 'Medium' ? '中' : '低'}

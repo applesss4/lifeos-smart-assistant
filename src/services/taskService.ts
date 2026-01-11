@@ -130,6 +130,21 @@ export async function deleteTask(id: string): Promise<void> {
 }
 
 /**
+ * 批量删除任务
+ */
+export async function deleteTasks(ids: string[]): Promise<void> {
+    const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .in('id', ids);
+
+    if (error) {
+        console.error('批量删除任务失败:', error.message);
+        throw error;
+    }
+}
+
+/**
  * 获取今日任务
  */
 export async function getTodayTasks(): Promise<Task[]> {

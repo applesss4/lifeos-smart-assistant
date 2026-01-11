@@ -43,6 +43,25 @@ function dbToRecord(db: DbAttendanceRecord): AttendanceRecord {
 }
 
 /**
+ * 将时间舍入到最近的整点或整点30分
+ * 例如：08:14 -> 08:00, 08:15 -> 08:30, 08:44 -> 08:30, 08:45 -> 09:00
+ */
+export function roundTimeToNearestHalfHour(timeStr: string): string {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    let roundedHours = hours;
+    let roundedMinutes = 0;
+
+    if (minutes >= 15 && minutes < 45) {
+        roundedMinutes = 30;
+    } else if (minutes >= 45) {
+        roundedMinutes = 0;
+        roundedHours = (hours + 1) % 24;
+    }
+
+    return `${String(roundedHours).padStart(2, '0')}:${String(roundedMinutes).padStart(2, '0')}`;
+}
+
+/**
  * 获取打卡记录（默认最近7天）
  */
 export async function getAttendanceRecords(days: number = 7): Promise<AttendanceRecord[]> {
@@ -134,11 +153,12 @@ export async function addManualRecord(
     time: string,
     type: '上班' | '下班'
 ): Promise<AttendanceRecord> {
+    const roundedTime = roundTimeToNearestHalfHour(time);
     const { data, error } = await supabase
         .from('attendance_records')
         .insert({
             record_date: date,
-            record_time: time,
+            record_time: roundedTime,
             record_type: type,
         })
         .select()
@@ -150,6 +170,39 @@ export async function addManualRecord(
     }
 
     return dbToRecord(data);
+}
+
+/**
+ * 获取月度统计
+ */
+/**
+ * Calculate work minutes between start and end time, deducting lunch break (12:00-13:00) on weekdays
+ */
+function calculateNetWorkMinutes(inTimeStr: string, outTimeStr: string, dateStr: string): number {
+    const inTime = inTimeStr.split(':').map(Number);
+    const outTime = outTimeStr.split(':').map(Number);
+
+    const inMinutes = inTime[0] * 60 + inTime[1];
+    const outMinutes = outTime[0] * 60 + outTime[1];
+
+    if (inMinutes >= outMinutes) return 0;
+
+    let duration = outMinutes - inMinutes;
+
+    // 午休扣除逻辑：每日 12:00-13:00
+    // Previous logic excluded weekends, but user req indicates it applies generally.
+    const lunchStart = 12 * 60; // 12:00
+    const lunchEnd = 13 * 60;   // 13:00
+
+    // Calculate overlap
+    const overlapStart = Math.max(inMinutes, lunchStart);
+    const overlapEnd = Math.min(outMinutes, lunchEnd);
+
+    if (overlapEnd > overlapStart) {
+        duration -= (overlapEnd - overlapStart);
+    }
+
+    return duration;
 }
 
 /**
@@ -193,28 +246,24 @@ export async function getMonthlyStats(year?: number, month?: number): Promise<Mo
     });
 
     recordsByDate.forEach((dayRecords, date) => {
-        const clockIn = dayRecords.find(r => r.record_type === '上班');
-        const clockOut = dayRecords.find(r => r.record_type === '下班');
+        // Find Earliest In and Latest Out
+        // Records are sorted by time ascending
+        const clockIns = dayRecords.filter(r => r.record_type === '上班');
+        const clockOuts = dayRecords.filter(r => r.record_type === '下班');
 
-        if (clockIn) {
+        const firstIn = clockIns.length > 0 ? clockIns[0] : null;
+        const lastOut = clockOuts.length > 0 ? clockOuts[clockOuts.length - 1] : null;
+
+        if (firstIn) {
             workDays.add(date);
 
-            if (clockOut) {
-                // 计算工作时长
-                const inTime = clockIn.record_time.split(':').map(Number);
-                const outTime = clockOut.record_time.split(':').map(Number);
-
-                const inMinutes = inTime[0] * 60 + inTime[1];
-                const outMinutes = outTime[0] * 60 + outTime[1];
-
-                if (outMinutes > inMinutes) {
-                    totalMinutes += outMinutes - inMinutes;
-                }
+            if (lastOut) {
+                totalMinutes += calculateNetWorkMinutes(firstIn.record_time, lastOut.record_time, date);
             }
         }
     });
 
-    // 计算本月工作日目标（假设周一到周五）
+    // 计算本月工作日目标
     const daysInMonth = new Date(targetYear, targetMonth, 0).getDate();
     let targetDays = 0;
     for (let day = 1; day <= daysInMonth; day++) {
@@ -279,18 +328,16 @@ export async function getDailyStats(date: string): Promise<DailyStats> {
 
     const records = data || [];
     let totalMinutes = 0;
-    const clockIn = records.find(r => r.record_type === '上班');
-    const clockOut = records.find(r => r.record_type === '下班');
 
-    if (clockIn && clockOut) {
-        const inTime = clockIn.record_time.split(':').map(Number);
-        const outTime = clockOut.record_time.split(':').map(Number);
-        const inMinutes = inTime[0] * 60 + inTime[1];
-        const outMinutes = outTime[0] * 60 + outTime[1];
+    // Find Earliest In and Latest Out
+    const clockIns = records.filter(r => r.record_type === '上班');
+    const clockOuts = records.filter(r => r.record_type === '下班');
 
-        if (outMinutes > inMinutes) {
-            totalMinutes = outMinutes - inMinutes;
-        }
+    const firstIn = clockIns.length > 0 ? clockIns[0] : null;
+    const lastOut = clockOuts.length > 0 ? clockOuts[clockOuts.length - 1] : null;
+
+    if (firstIn && lastOut) {
+        totalMinutes = calculateNetWorkMinutes(firstIn.record_time, lastOut.record_time, date);
     }
 
     const totalHours = Math.round((totalMinutes / 60) * 10) / 10;
@@ -301,4 +348,65 @@ export async function getDailyStats(date: string): Promise<DailyStats> {
         totalHours,
         overtimeHours,
     };
+}
+
+/**
+ * 删除打卡记录
+ */
+export async function deleteAttendanceRecord(id: string): Promise<void> {
+    const { error } = await supabase
+        .from('attendance_records')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        console.error('删除打卡记录失败:', error.message);
+        throw error;
+    }
+}
+
+/**
+ * 批量删除打卡记录
+ */
+export async function deleteAttendanceRecords(ids: string[]): Promise<void> {
+    const { error } = await supabase
+        .from('attendance_records')
+        .delete()
+        .in('id', ids);
+
+    if (error) {
+        console.error('批量删除打卡记录失败:', error.message);
+        throw error;
+    }
+}
+
+/**
+ * 更新打卡记录
+ */
+export async function updateAttendanceRecord(
+    id: string,
+    updates: {
+        date?: string;
+        time?: string;
+        type?: '上班' | '下班';
+    }
+): Promise<AttendanceRecord> {
+    const dbUpdates: any = {};
+    if (updates.date) dbUpdates.record_date = updates.date;
+    if (updates.time) dbUpdates.record_time = roundTimeToNearestHalfHour(updates.time);
+    if (updates.type) dbUpdates.record_type = updates.type;
+
+    const { data, error } = await supabase
+        .from('attendance_records')
+        .update(dbUpdates)
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) {
+        console.error('更新打卡记录失败:', error.message);
+        throw error;
+    }
+
+    return dbToRecord(data);
 }

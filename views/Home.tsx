@@ -5,6 +5,7 @@ import * as transactionService from '../src/services/transactionService';
 import * as taskService from '../src/services/taskService';
 import * as attendanceService from '../src/services/attendanceService';
 import * as dailyReportService from '../src/services/dailyReportService';
+import * as salaryService from '../src/services/salaryService';
 
 interface HomeProps {
   onNavigate: (view: ViewType) => void;
@@ -40,12 +41,14 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
   });
   const [monthlyStats, setMonthlyStats] = useState({
     expense: 0,
-    budget: 5000 // 假设预算为 5000
+    budget: 5000, // 假设预算为 5000
+    overtimePay: 0
   });
 
   const [newExpenseName, setNewExpenseName] = useState('');
   const [newExpenseAmount, setNewExpenseAmount] = useState('');
   const [newExpenseCategory, setNewExpenseCategory] = useState('其他');
+  const [newExpensePaymentMethod, setNewExpensePaymentMethod] = useState('PayPay残高');
 
   // 加载数据
   const loadData = useCallback(async () => {
@@ -94,8 +97,20 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
 
       setMonthlyStats({
         expense: parseFloat(monthFin.expense.replace(/,/g, '')),
-        budget: 5000 - parseFloat(monthFin.expense.replace(/,/g, ''))
+        budget: 5000 - parseFloat(monthFin.expense.replace(/,/g, '')),
+        overtimePay: 0 // Will be updated with settings
       });
+
+      // Fetch salary settings for overtime rate
+      const salarySettings = await salaryService.getSalarySettings();
+      if (salarySettings) {
+        // Get monthly stats again to access overtime hours if not available
+        const stats = await attendanceService.getMonthlyStats();
+        setMonthlyStats(prev => ({
+          ...prev,
+          overtimePay: stats.totalHours > 0 ? Math.max(0, stats.totalHours - (stats.attendanceDays * 8)) * salarySettings.overtime_rate : 0
+        }));
+      }
 
     } catch (error) {
       console.error('加载首页数据失败:', error);
@@ -139,10 +154,11 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
     if (!newExpenseName.trim() || isNaN(amountNum)) return;
 
     try {
-      const newTx = await transactionService.addExpense(newExpenseName, amountNum, newExpenseCategory);
+      const newTx = await transactionService.addExpense(newExpenseName, amountNum, newExpenseCategory, newExpensePaymentMethod);
       setTodayExpenses([newTx, ...todayExpenses]);
       setNewExpenseName('');
       setNewExpenseAmount('');
+      setNewExpensePaymentMethod('PayPay残高');
       setShowAddExpenseModal(false);
       onNotify(`支出已记录: ${newExpenseName} ¥${amountNum}`);
     } catch (error) {
@@ -292,13 +308,14 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
           </div>
           <div className="bg-teal-50 dark:bg-teal-900/10 p-4 rounded-2xl border border-teal-100 dark:border-teal-800/30 h-28 flex flex-col justify-between">
             <div className="flex items-start justify-between">
-              <span className="p-2 bg-teal-100 dark:bg-teal-900/30 rounded-lg text-teal-600 dark:text-teal-400 material-symbols-outlined">savings</span>
-              <span className="text-xs font-medium text-teal-400">剩余预算</span>
+              <span className="p-2 bg-teal-100 dark:bg-teal-900/30 rounded-lg text-teal-600 dark:text-teal-400 material-symbols-outlined">timelapse</span>
+              <span className="text-xs font-medium text-teal-400">本月加班费</span>
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">¥{monthlyStats.budget.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">¥{Math.floor(monthlyStats.overtimePay || 0).toLocaleString()}</p>
               <div className="w-full bg-teal-200 dark:bg-teal-800 rounded-full h-1 mt-2">
-                <div className="bg-teal-500 h-1 rounded-full" style={{ width: `${Math.min(100, Math.max(0, (monthlyStats.budget / 5000) * 100))}%` }}></div>
+                {/*  Show a progress bar relative to a target, e.g., 5000 placeholder */}
+                <div className="bg-teal-500 h-1 rounded-full" style={{ width: `${Math.min(100, Math.max(0, ((monthlyStats.overtimePay || 0) / 10000) * 100))}%` }}></div>
               </div>
             </div>
           </div>
@@ -567,6 +584,19 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
                       <option value="交通">交通</option>
                       <option value="购物">购物</option>
                       <option value="其他">其他</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">支付方式</label>
+                    <select
+                      value={newExpensePaymentMethod}
+                      onChange={(e) => setNewExpensePaymentMethod(e.target.value)}
+                      className="w-full bg-gray-50 dark:bg-gray-800 border-none rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary dark:text-white appearance-none"
+                    >
+                      <option value="PayPay残高">PayPay残高</option>
+                      <option value="现金">现金</option>
+                      <option value="信用卡">信用卡</option>
+                      <option value="积分">积分</option>
                     </select>
                   </div>
                 </div>

@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import * as attendanceService from '../src/services/attendanceService';
 import { AttendanceRecord, MonthlyStats } from '../src/services/attendanceService';
+import * as salaryService from '../src/services/salaryService';
 
 interface AttendanceProps {
   onNotify: (msg: string) => void;
@@ -21,6 +22,10 @@ const Attendance: React.FC<AttendanceProps> = ({ onNotify }) => {
     targetDays: 22,
     targetHours: 176
   });
+  const [yesterdayStats, setYesterdayStats] = useState({
+    hours: 0,
+    salary: 0
+  });
 
   // Form state for manual entry
   const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
@@ -31,11 +36,22 @@ const Attendance: React.FC<AttendanceProps> = ({ onNotify }) => {
   const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const [recentRecordsData, statsData, statusData] = await Promise.all([
+      const [recentRecordsData, statsData, statusData, settings] = await Promise.all([
         attendanceService.getRecentRecords(),
         attendanceService.getMonthlyStats(),
-        attendanceService.getTodayPunchStatus()
+        attendanceService.getTodayPunchStatus(),
+        salaryService.getSalarySettings()
       ]);
+
+      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+      const yesterdayAtt = await attendanceService.getDailyStats(yesterday);
+
+      const hourlyRate = settings ? settings.hourly_rate : 0; // Default or 0
+
+      setYesterdayStats({
+        hours: yesterdayAtt.totalHours,
+        salary: yesterdayAtt.totalHours * hourlyRate
+      });
 
       setRecords(recentRecordsData);
       setMonthlyStats(statsData);
@@ -251,12 +267,12 @@ const Attendance: React.FC<AttendanceProps> = ({ onNotify }) => {
                 </div>
                 <div className="flex items-baseline gap-1">
                   <span className="text-xs font-semibold text-gray-400">¥</span>
-                  <span className="text-3xl font-black dark:text-white">324.80</span>
+                  <span className="text-3xl font-black dark:text-white">{Math.floor(yesterdayStats.salary).toLocaleString()}</span>
                 </div>
               </div>
               <div className="text-right">
                 <p className="text-[10px] text-gray-400 font-medium uppercase">计薪时长</p>
-                <p className="text-xl font-bold dark:text-white">8.0 <span className="text-xs font-normal text-gray-400">h</span></p>
+                <p className="text-xl font-bold dark:text-white">{yesterdayStats.hours} <span className="text-xs font-normal text-gray-400">h</span></p>
               </div>
             </div>
           </div>
