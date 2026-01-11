@@ -3,7 +3,11 @@ import React, { useState, useEffect } from 'react';
 import * as dailyReportService from '../../../src/services/dailyReportService';
 import { DailyReport } from '../../../src/services/dailyReportService';
 
-const ReportsView: React.FC = () => {
+interface ReportsViewProps {
+    selectedUserId?: string;
+}
+
+const ReportsView: React.FC<ReportsViewProps> = ({ selectedUserId }) => {
     const [reports, setReports] = useState<DailyReport[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 

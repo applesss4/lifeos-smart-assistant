@@ -63,15 +63,23 @@ export function roundTimeToNearestHalfHour(timeStr: string): string {
 
 /**
  * 获取打卡记录（默认最近7天）
+ * @param days 获取最近几天的记录
+ * @param userId 可选的用户ID,如果提供则只获取该用户的记录
  */
-export async function getAttendanceRecords(days: number = 7): Promise<AttendanceRecord[]> {
+export async function getAttendanceRecords(days: number = 7, userId?: string): Promise<AttendanceRecord[]> {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    const { data, error } = await supabase
+    let query = supabase
         .from('attendance_records')
         .select('*')
-        .gte('record_date', startDate.toISOString().split('T')[0])
+        .gte('record_date', startDate.toISOString().split('T')[0]);
+    
+    if (userId) {
+        query = query.eq('user_id', userId);
+    }
+    
+    const { data, error } = await query
         .order('record_date', { ascending: false })
         .order('record_time', { ascending: false });
 

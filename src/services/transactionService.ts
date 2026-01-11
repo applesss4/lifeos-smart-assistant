@@ -72,11 +72,18 @@ function dbToTransaction(db: DbTransaction): Transaction {
 
 /**
  * 获取所有交易记录
+ * @param userId 可选的用户ID,如果提供则只获取该用户的交易
  */
-export async function getTransactions(): Promise<Transaction[]> {
-    const { data, error } = await supabase
+export async function getTransactions(userId?: string): Promise<Transaction[]> {
+    let query = supabase
         .from('transactions')
-        .select('*')
+        .select('*');
+    
+    if (userId) {
+        query = query.eq('user_id', userId);
+    }
+    
+    const { data, error } = await query
         .order('transaction_date', { ascending: false })
         .order('transaction_time', { ascending: false });
 

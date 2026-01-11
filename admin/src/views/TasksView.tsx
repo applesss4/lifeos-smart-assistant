@@ -4,7 +4,11 @@ import * as taskService from '../../../src/services/taskService';
 import { Task } from '../../../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
 
-const TasksView: React.FC = () => {
+interface TasksViewProps {
+    selectedUserId?: string;
+}
+
+const TasksView: React.FC<TasksViewProps> = ({ selectedUserId }) => {
     const [tasks, setTasks] = useState<Task[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showEditModal, setShowEditModal] = useState(false);
@@ -47,7 +51,9 @@ const TasksView: React.FC = () => {
     const fetchData = async () => {
         try {
             setIsLoading(true);
-            const data = await taskService.getTasks();
+            console.log('TasksView: 加载用户任务, userId=', selectedUserId);
+            const data = await taskService.getTasks(selectedUserId);
+            console.log('TasksView: 获取到', data.length, '个任务');
             setTasks(data);
         } finally {
             setIsLoading(false);
@@ -56,7 +62,7 @@ const TasksView: React.FC = () => {
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [selectedUserId]); // 当 selectedUserId 变化时重新加载数据
 
     const toggleTask = async (task: Task) => {
         try {

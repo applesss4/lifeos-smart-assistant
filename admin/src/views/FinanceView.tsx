@@ -3,7 +3,11 @@ import React, { useState, useEffect } from 'react';
 import * as transactionService from '../../../src/services/transactionService';
 import { Transaction } from '../../../types';
 
-const FinanceView: React.FC = () => {
+interface FinanceViewProps {
+    selectedUserId?: string;
+}
+
+const FinanceView: React.FC<FinanceViewProps> = ({ selectedUserId }) => {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -47,7 +51,9 @@ const FinanceView: React.FC = () => {
     const fetchData = async () => {
         try {
             setIsLoading(true);
-            const data = await transactionService.getTransactions();
+            console.log('FinanceView: 加载用户交易, userId=', selectedUserId);
+            const data = await transactionService.getTransactions(selectedUserId);
+            console.log('FinanceView: 获取到', data.length, '条交易记录');
             setTransactions(data);
         } finally {
             setIsLoading(false);
@@ -56,7 +62,7 @@ const FinanceView: React.FC = () => {
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [selectedUserId]); // 当 selectedUserId 变化时重新加载数据
 
     const handleDelete = async (id: string) => {
         if (!confirm('确定要删除这笔记录吗？')) return;

@@ -3,7 +3,11 @@ import React, { useState, useEffect } from 'react';
 import * as attendanceService from '../../../src/services/attendanceService';
 import { AttendanceRecord } from '../../../src/services/attendanceService';
 
-const AttendanceView: React.FC = () => {
+interface AttendanceViewProps {
+    selectedUserId?: string;
+}
+
+const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
     const [records, setRecords] = useState<AttendanceRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
@@ -51,7 +55,9 @@ const AttendanceView: React.FC = () => {
     const fetchRecords = async () => {
         try {
             setIsLoading(true);
-            const data = await attendanceService.getAttendanceRecords(30); // 获取最近30天
+            console.log('AttendanceView: 加载用户打卡记录, userId=', selectedUserId);
+            const data = await attendanceService.getAttendanceRecords(30, selectedUserId); // 获取最近30天
+            console.log('AttendanceView: 获取到', data.length, '条打卡记录');
             setRecords(data);
         } finally {
             setIsLoading(false);
@@ -60,7 +66,7 @@ const AttendanceView: React.FC = () => {
 
     useEffect(() => {
         fetchRecords();
-    }, []);
+    }, [selectedUserId]); // 当 selectedUserId 变化时重新加载数据
 
     const handleDelete = async (id: string) => {
         if (!confirm('确定要删除这条打卡记录吗？')) return;

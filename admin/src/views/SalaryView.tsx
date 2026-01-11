@@ -3,7 +3,11 @@ import React, { useState, useEffect } from 'react';
 import * as attendanceService from '../../../src/services/attendanceService';
 import * as salaryService from '../../../src/services/salaryService';
 
-const SalaryView: React.FC = () => {
+interface SalaryViewProps {
+    selectedUserId?: string;
+}
+
+const SalaryView: React.FC<SalaryViewProps> = ({ selectedUserId }) => {
     // 薪资设置状态
     const [settingsId, setSettingsId] = useState<string>('');
     const [hourlyRate, setHourlyRate] = useState(105);

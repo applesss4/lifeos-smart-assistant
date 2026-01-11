@@ -17,7 +17,11 @@ import {
     Cell
 } from 'recharts';
 
-const MonthlyStatsView: React.FC = () => {
+interface MonthlyStatsViewProps {
+    selectedUserId?: string;
+}
+
+const MonthlyStatsView: React.FC<MonthlyStatsViewProps> = ({ selectedUserId }) => {
     const [loading, setLoading] = useState(true);
     const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1);
     const [currentYear, setCurrentYear] = useState(new Date().getFullYear());

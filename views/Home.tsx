@@ -6,6 +6,7 @@ import * as taskService from '../src/services/taskService';
 import * as attendanceService from '../src/services/attendanceService';
 import * as dailyReportService from '../src/services/dailyReportService';
 import * as salaryService from '../src/services/salaryService';
+import * as profileService from '../src/services/profileService';
 import { useAuth } from '../src/contexts/AuthContext';
 
 interface HomeProps {
@@ -14,7 +15,7 @@ interface HomeProps {
 }
 
 const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const [homeTasks, setHomeTasks] = useState<Task[]>([]);
   const [todayExpenses, setTodayExpenses] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -22,6 +23,10 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
   const [showDailyReport, setShowDailyReport] = useState(false);
   const [isSavingReport, setIsSavingReport] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showUsernameModal, setShowUsernameModal] = useState(false);
+  const [username, setUsername] = useState<string>('用户');
+  const [newUsername, setNewUsername] = useState('');
+  const [isSavingUsername, setIsSavingUsername] = useState(false);
 
   // 统计数据状态
   const [yesterdayStats, setYesterdayStats] = useState({
@@ -69,7 +74,8 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
         yesterdayAtt,
         yesterdayFin,
         monthFin,
-        todayPunch
+        todayPunch,
+        userProfile
       ] = await Promise.all([
         taskService.getTodayTasks(),
         transactionService.getTodayTransactions(),
@@ -78,11 +84,20 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
         attendanceService.getDailyStats(yesterday),
         transactionService.getDailyStats(yesterday),
         transactionService.getMonthlyStats(now.getFullYear(), now.getMonth() + 1),
-        attendanceService.getTodayPunchStatus()
+        attendanceService.getTodayPunchStatus(),
+        profileService.getCurrentUserProfile()
       ]);
 
       setHomeTasks(tasksData);
       setTodayExpenses(expensesData.filter(t => t.type === 'Expense'));
+
+      // 设置用户名
+      if (userProfile && userProfile.username) {
+        setUsername(userProfile.username);
+      } else if (user?.email) {
+        // 如果没有用户名,使用邮箱前缀
+        setUsername(user.email.split('@')[0]);
+      }
 
       setTodayStats({
         hours: todayAtt.totalHours,
@@ -120,7 +135,7 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     loadData();
@@ -188,6 +203,32 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
     }
   };
 
+  const handleSaveUsername = async () => {
+    if (!newUsername.trim()) {
+      onNotify('用户名不能为空');
+      return;
+    }
+
+    try {
+      setIsSavingUsername(true);
+      const success = await profileService.updateUsername(newUsername.trim());
+      
+      if (success) {
+        setUsername(newUsername.trim());
+        setShowUsernameModal(false);
+        setNewUsername('');
+        onNotify('用户名已更新');
+      } else {
+        onNotify('更新用户名失败，请稍后重试');
+      }
+    } catch (error) {
+      console.error('保存用户名失败:', error);
+      onNotify('保存用户名失败，请稍后重试');
+    } finally {
+      setIsSavingUsername(false);
+    }
+  };
+
   const dailySummary = useMemo(() => {
     const totalHours = todayStats.hours;
     const overtimeHours = todayStats.overtime;
@@ -252,6 +293,18 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
             {showUserMenu && (
               <div className="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-surface-dark rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                 <button
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    setShowUsernameModal(true);
+                    setNewUsername(username);
+                  }}
+                  className="w-full text-left px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-lg">edit</span>
+                  设置用户名
+                </button>
+                <div className="border-t border-gray-100 dark:border-gray-800 my-1"></div>
+                <button
                   onClick={async () => {
                     try {
                       await signOut();
@@ -271,7 +324,7 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
           </div>
           <div>
             <p className="text-gray-500 dark:text-gray-400 text-sm font-medium leading-none mb-1">{greeting}，</p>
-            <h2 className="text-gray-900 dark:text-white text-xl font-bold leading-none tracking-tight">Alex Morgan</h2>
+            <h2 className="text-gray-900 dark:text-white text-xl font-bold leading-none tracking-tight">{username}</h2>
           </div>
         </div>
         <button
@@ -651,6 +704,55 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
                   保存支出
                 </button>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Username Setting Modal */}
+      {showUsernameModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="w-full max-w-sm bg-white dark:bg-surface-dark rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800 p-6 space-y-6">
+            <div className="flex justify-between items-center">
+              <h3 className="text-xl font-bold dark:text-white">设置用户名</h3>
+              <button 
+                onClick={() => setShowUsernameModal(false)} 
+                className="material-symbols-outlined text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                close
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-gray-400 uppercase ml-1">用户名</label>
+                <input
+                  type="text"
+                  value={newUsername}
+                  onChange={(e) => setNewUsername(e.target.value)}
+                  placeholder="请输入用户名"
+                  autoFocus
+                  maxLength={20}
+                  className="w-full h-14 bg-gray-50 dark:bg-gray-800/50 rounded-2xl px-4 text-lg font-bold dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-gray-300"
+                />
+                <p className="text-xs text-gray-400 ml-1">最多20个字符</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowUsernameModal(false)}
+                className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-xl font-bold"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSaveUsername}
+                disabled={isSavingUsername || !newUsername.trim()}
+                className={`flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20 ${isSavingUsername || !newUsername.trim() ? 'opacity-70' : ''}`}
+              >
+                {isSavingUsername ? '保存中...' : '保存'}
+              </button>
             </div>
           </div>
         </div>

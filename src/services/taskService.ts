@@ -44,12 +44,19 @@ function taskToDb(task: Partial<Task>): Partial<DbTask> {
 
 /**
  * 获取所有任务
+ * @param userId 可选的用户ID,如果提供则只获取该用户的任务
  */
-export async function getTasks(): Promise<Task[]> {
-    const { data, error } = await supabase
+export async function getTasks(userId?: string): Promise<Task[]> {
+    let query = supabase
         .from('tasks')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .select('*');
+    
+    // 如果提供了用户ID,则过滤该用户的任务
+    if (userId) {
+        query = query.eq('user_id', userId);
+    }
+    
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
         console.error('获取任务失败:', error.message);

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import SalaryView from './views/SalaryView';
 import AttendanceView from './views/AttendanceView';
 import FinanceView from './views/FinanceView';
@@ -8,6 +8,8 @@ import TasksView from './views/TasksView';
 import MonthlyStatsView from './views/MonthlyStatsView';
 import { AdminProtectedRoute } from './components/AdminProtectedRoute';
 import { useAuth } from '../../src/contexts/AuthContext';
+import * as profileService from '../../src/services/profileService';
+import type { UserProfile } from '../../src/services/profileService';
 
 enum AdminView {
     SALARY = 'salary',
@@ -21,7 +23,60 @@ enum AdminView {
 const App: React.FC = () => {
     const [activeView, setActiveView] = useState<AdminView>(AdminView.SALARY);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [showUserSelector, setShowUserSelector] = useState(false);
+    const [users, setUsers] = useState<UserProfile[]>([]);
+    const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+    const [isLoadingUsers, setIsLoadingUsers] = useState(false);
     const { user, signOut } = useAuth();
+
+    // 加载所有用户
+    useEffect(() => {
+        loadUsers();
+    }, []);
+
+    // 点击外部关闭用户选择器
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            const target = event.target as HTMLElement;
+            if (showUserSelector && !target.closest('.user-selector-container')) {
+                setShowUserSelector(false);
+            }
+        };
+
+        if (showUserSelector) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showUserSelector]);
+
+    const loadUsers = async () => {
+        setIsLoadingUsers(true);
+        try {
+            console.log('开始加载用户列表...');
+            const allUsers = await profileService.getAllUsers();
+            console.log('加载到的用户:', allUsers);
+            setUsers(allUsers);
+            // 默认选择第一个用户
+            if (allUsers.length > 0 && !selectedUser) {
+                setSelectedUser(allUsers[0]);
+                console.log('默认选择用户:', allUsers[0]);
+            } else if (allUsers.length === 0) {
+                console.warn('没有找到任何用户!');
+            }
+        } catch (error) {
+            console.error('加载用户列表失败:', error);
+        } finally {
+            setIsLoadingUsers(false);
+        }
+    };
+
+    const handleUserSelect = (user: UserProfile) => {
+        setSelectedUser(user);
+        setShowUserSelector(false);
+    };
 
     const menuItems = [
         { id: AdminView.SALARY, label: '工资统计', icon: 'payments' },
@@ -43,14 +98,16 @@ const App: React.FC = () => {
     };
 
     const renderContent = () => {
+        const userId = selectedUser?.id;
+        
         switch (activeView) {
-            case AdminView.SALARY: return <SalaryView />;
-            case AdminView.ATTENDANCE: return <AttendanceView />;
-            case AdminView.FINANCE: return <FinanceView />;
-            case AdminView.REPORTS: return <ReportsView />;
-            case AdminView.TASKS: return <TasksView />;
-            case AdminView.MONTHLY_STATS: return <MonthlyStatsView />;
-            default: return <SalaryView />;
+            case AdminView.SALARY: return <SalaryView selectedUserId={userId} />;
+            case AdminView.ATTENDANCE: return <AttendanceView selectedUserId={userId} />;
+            case AdminView.FINANCE: return <FinanceView selectedUserId={userId} />;
+            case AdminView.REPORTS: return <ReportsView selectedUserId={userId} />;
+            case AdminView.TASKS: return <TasksView selectedUserId={userId} />;
+            case AdminView.MONTHLY_STATS: return <MonthlyStatsView selectedUserId={userId} />;
+            default: return <SalaryView selectedUserId={userId} />;
         }
     };
 
@@ -118,9 +175,69 @@ const App: React.FC = () => {
                             {menuItems.find(i => i.id === activeView)?.label}
                         </span>
                     </div>
-                    <div className="flex items-center gap-4">
-                        <div className="size-8 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"></div>
-                        <span className="text-sm font-bold dark:text-gray-300">{user?.email || '管理员'}</span>
+                    <div className="flex items-center gap-6">
+                        {/* User Selector */}
+                        <div className="relative user-selector-container">
+                            <button
+                                onClick={() => setShowUserSelector(!showUserSelector)}
+                                className="flex items-center gap-3 px-4 py-2 rounded-xl bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border border-gray-200 dark:border-gray-700"
+                            >
+                                <div className="size-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                    <span className="material-symbols-outlined text-primary text-sm">person</span>
+                                </div>
+                                <div className="text-left">
+                                    <p className="text-xs text-gray-400 font-medium">查看用户</p>
+                                    <p className="text-sm font-bold dark:text-white">
+                                        {selectedUser?.username || selectedUser?.email?.split('@')[0] || '选择用户'}
+                                    </p>
+                                </div>
+                                <span className="material-symbols-outlined text-gray-400 text-sm">expand_more</span>
+                            </button>
+
+                            {/* User Dropdown */}
+                            {showUserSelector && (
+                                <div className="absolute top-full right-0 mt-2 w-72 bg-white dark:bg-surface-dark rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200 max-h-96 overflow-y-auto">
+                                    {isLoadingUsers ? (
+                                        <div className="px-4 py-8 text-center text-gray-400 text-sm">加载中...</div>
+                                    ) : users.length === 0 ? (
+                                        <div className="px-4 py-8 text-center text-gray-400 text-sm">暂无用户</div>
+                                    ) : (
+                                        users.map((u) => (
+                                            <button
+                                                key={u.id}
+                                                onClick={() => handleUserSelect(u)}
+                                                className={`w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-3 transition-colors ${selectedUser?.id === u.id ? 'bg-primary/5' : ''
+                                                    }`}
+                                            >
+                                                <div className={`size-10 rounded-full flex items-center justify-center ${selectedUser?.id === u.id ? 'bg-primary/20' : 'bg-gray-100 dark:bg-gray-800'
+                                                    }`}>
+                                                    <span className={`material-symbols-outlined ${selectedUser?.id === u.id ? 'text-primary' : 'text-gray-400'
+                                                        }`}>
+                                                        person
+                                                    </span>
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className={`text-sm font-bold truncate ${selectedUser?.id === u.id ? 'text-primary' : 'dark:text-white'
+                                                        }`}>
+                                                        {u.username || u.email.split('@')[0]}
+                                                    </p>
+                                                    <p className="text-xs text-gray-400 truncate">{u.email}</p>
+                                                </div>
+                                                {selectedUser?.id === u.id && (
+                                                    <span className="material-symbols-outlined text-primary text-sm">check_circle</span>
+                                                )}
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Admin Info */}
+                        <div className="flex items-center gap-3 pl-6 border-l border-gray-200 dark:border-gray-700">
+                            <div className="size-8 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"></div>
+                            <span className="text-sm font-bold dark:text-gray-300">{user?.email || '管理员'}</span>
+                        </div>
                     </div>
                 </header>
 
