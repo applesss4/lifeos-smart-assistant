@@ -43,10 +43,9 @@ const App: React.FC = () => {
   return (
     <div className="flex flex-col min-h-screen max-w-md mx-auto bg-background-light dark:bg-background-dark relative">
       {/* Real-time Notification Overlay */}
-      <div 
-        className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] transition-all duration-300 transform ${
-          notification.visible ? 'translate-y-0 opacity-100' : '-translate-y-8 opacity-0 pointer-events-none'
-        }`}
+      <div
+        className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] transition-all duration-300 transform ${notification.visible ? 'translate-y-0 opacity-100' : '-translate-y-8 opacity-0 pointer-events-none'
+          }`}
       >
         <div className="bg-surface-dark/90 backdrop-blur-md text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-white/10">
           <span className="material-symbols-outlined text-primary text-xl">notifications_active</span>
@@ -58,16 +57,6 @@ const App: React.FC = () => {
         {renderView()}
       </div>
       <BottomNav activeView={activeView} onViewChange={setActiveView} />
-      
-      {/* Dark Mode Toggle Float */}
-      <button 
-        onClick={() => setIsDarkMode(!isDarkMode)}
-        className="fixed top-6 right-6 z-50 p-2 rounded-full bg-white dark:bg-surface-dark shadow-lg border border-gray-100 dark:border-gray-800"
-      >
-        <span className="material-symbols-outlined text-primary">
-          {isDarkMode ? 'light_mode' : 'dark_mode'}
-        </span>
-      </button>
     </div>
   );
 };
