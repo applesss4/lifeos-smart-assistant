@@ -1,0 +1,8 @@
+
+{
+  "name": "LifeOS - 智能生活管家",
+  "description": "一个集成了待办事项、财务管理和考勤打卡的全面生活管理应用，采用极简现代设计语言，支持每日自动日报总结。",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
