@@ -97,16 +97,25 @@ export async function getTransactions(userId?: string): Promise<Transaction[]> {
 
 /**
  * 获取指定月份的交易记录
+ * @param year 年份
+ * @param month 月份
+ * @param userId 可选的用户ID,如果提供则只获取该用户的交易
  */
-export async function getTransactionsByMonth(year: number, month: number): Promise<Transaction[]> {
+export async function getTransactionsByMonth(year: number, month: number, userId?: string): Promise<Transaction[]> {
     const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
     const endDate = new Date(year, month, 0).toISOString().split('T')[0];
 
-    const { data, error } = await supabase
+    let query = supabase
         .from('transactions')
         .select('*')
         .gte('transaction_date', startDate)
-        .lte('transaction_date', endDate)
+        .lte('transaction_date', endDate);
+    
+    if (userId) {
+        query = query.eq('user_id', userId);
+    }
+    
+    const { data, error } = await query
         .order('transaction_date', { ascending: false })
         .order('transaction_time', { ascending: false });
 
@@ -120,15 +129,21 @@ export async function getTransactionsByMonth(year: number, month: number): Promi
 
 /**
  * 获取今日交易记录
+ * @param userId 可选的用户ID,如果提供则只获取该用户的交易
  */
-export async function getTodayTransactions(): Promise<Transaction[]> {
+export async function getTodayTransactions(userId?: string): Promise<Transaction[]> {
     const today = new Date().toISOString().split('T')[0];
 
-    const { data, error } = await supabase
+    let query = supabase
         .from('transactions')
         .select('*')
-        .eq('transaction_date', today)
-        .order('transaction_time', { ascending: false });
+        .eq('transaction_date', today);
+    
+    if (userId) {
+        query = query.eq('user_id', userId);
+    }
+    
+    const { data, error } = await query.order('transaction_time', { ascending: false });
 
     if (error) {
         console.error('获取今日交易记录失败:', error.message);
@@ -140,6 +155,8 @@ export async function getTodayTransactions(): Promise<Transaction[]> {
 
 /**
  * 创建交易记录
+ * @param transaction 交易数据
+ * @param targetUserId 可选的目标用户ID，管理员可以为其他用户创建交易
  */
 export async function createTransaction(transaction: {
     name: string;
@@ -148,7 +165,7 @@ export async function createTransaction(transaction: {
     category: string;
     icon?: string;
     paymentMethod?: string;
-}): Promise<Transaction> {
+}, targetUserId?: string): Promise<Transaction> {
     // 获取当前登录用户
     const { data: { user } } = await supabase.auth.getUser();
     
@@ -156,12 +173,15 @@ export async function createTransaction(transaction: {
         throw new Error('用户未登录');
     }
 
+    // 如果提供了 targetUserId，使用它；否则使用当前用户ID
+    const userId = targetUserId || user.id;
+
     const now = new Date();
 
     const { data, error } = await supabase
         .from('transactions')
         .insert({
-            user_id: user.id, // 添加 user_id
+            user_id: userId,
             name: transaction.name,
             amount: transaction.type === 'Expense' ? -Math.abs(transaction.amount) : Math.abs(transaction.amount),
             transaction_type: transaction.type,
@@ -184,8 +204,13 @@ export async function createTransaction(transaction: {
 
 /**
  * 添加支出
+ * @param name 支出名称
+ * @param amount 金额
+ * @param category 分类
+ * @param paymentMethod 支付方式
+ * @param targetUserId 可选的目标用户ID，管理员可以为其他用户添加支出
  */
-export async function addExpense(name: string, amount: number, category: string, paymentMethod?: string): Promise<Transaction> {
+export async function addExpense(name: string, amount: number, category: string, paymentMethod?: string, targetUserId?: string): Promise<Transaction> {
     // 根据分类确定图标
     const iconMap: Record<string, string> = {
         '餐饮': 'lunch_dining',
@@ -201,27 +226,32 @@ export async function addExpense(name: string, amount: number, category: string,
         category,
         paymentMethod,
         icon: iconMap[category] || 'receipt',
-    });
+    }, targetUserId);
 }
 
 /**
  * 添加老婆给的零花钱（收入）
+ * @param amount 金额
+ * @param targetUserId 可选的目标用户ID，管理员可以为其他用户添加收入
  */
-export async function addPocketMoney(amount: number): Promise<Transaction> {
+export async function addPocketMoney(amount: number, targetUserId?: string): Promise<Transaction> {
     return createTransaction({
         name: '老婆给的零花钱',
         amount,
         type: 'Income',
         category: '收入',
         icon: 'redeem' // 使用礼包图标
-    });
+    }, targetUserId);
 }
 
 /**
  * 获取月度统计数据
+ * @param year 年份
+ * @param month 月份
+ * @param userId 可选的用户ID,如果提供则只获取该用户的数据
  */
-export async function getMonthlyStats(year: number, month: number): Promise<MonthlyData> {
-    const transactions = await getTransactionsByMonth(year, month);
+export async function getMonthlyStats(year: number, month: number, userId?: string): Promise<MonthlyData> {
+    const transactions = await getTransactionsByMonth(year, month, userId);
 
     // 计算收入和支出
     let totalIncome = 0;
@@ -326,12 +356,20 @@ export async function updateTransaction(id: string, updates: {
 
 /**
  * 获取特定日期的财务统计数据
+ * @param date 日期字符串
+ * @param userId 可选的用户ID,如果提供则只获取该用户的数据
  */
-export async function getDailyStats(date: string): Promise<DailyFinancialStats> {
-    const { data, error } = await supabase
+export async function getDailyStats(date: string, userId?: string): Promise<DailyFinancialStats> {
+    let query = supabase
         .from('transactions')
         .select('amount, transaction_type')
         .eq('transaction_date', date);
+    
+    if (userId) {
+        query = query.eq('user_id', userId);
+    }
+    
+    const { data, error } = await query;
 
     if (error) {
         console.error('获取每日交易统计失败:', error.message);

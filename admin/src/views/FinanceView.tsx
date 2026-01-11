@@ -105,7 +105,7 @@ const FinanceView: React.FC<FinanceViewProps> = ({ selectedUserId }) => {
                     type: formData.type,
                     category: formData.category,
                     paymentMethod: formData.paymentMethod
-                });
+                }, selectedUserId); // 传递 selectedUserId 给服务函数
             } else if (editingId) {
                 await transactionService.updateTransaction(editingId, {
                     name: formData.name,

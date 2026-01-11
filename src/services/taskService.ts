@@ -68,8 +68,10 @@ export async function getTasks(userId?: string): Promise<Task[]> {
 
 /**
  * 创建新任务
+ * @param task 任务数据
+ * @param targetUserId 可选的目标用户ID，管理员可以为其他用户创建任务
  */
-export async function createTask(task: Omit<Task, 'id'>): Promise<Task> {
+export async function createTask(task: Omit<Task, 'id'>, targetUserId?: string): Promise<Task> {
     // 获取当前登录用户
     const { data: { user } } = await supabase.auth.getUser();
     
@@ -77,8 +79,11 @@ export async function createTask(task: Omit<Task, 'id'>): Promise<Task> {
         throw new Error('用户未登录');
     }
 
+    // 如果提供了 targetUserId，使用它；否则使用当前用户ID
+    const userId = targetUserId || user.id;
+
     const dbData = {
-        user_id: user.id, // 添加 user_id
+        user_id: userId,
         title: task.title,
         scheduled_time: task.time,
         category: task.category,
@@ -161,13 +166,19 @@ export async function deleteTasks(ids: string[]): Promise<void> {
 
 /**
  * 获取今日任务
+ * @param userId 可选的用户ID,如果提供则只获取该用户的任务
  */
-export async function getTodayTasks(): Promise<Task[]> {
-    const { data, error } = await supabase
+export async function getTodayTasks(userId?: string): Promise<Task[]> {
+    let query = supabase
         .from('tasks')
         .select('*')
-        .eq('date_label', '今日')
-        .order('scheduled_time', { ascending: true });
+        .eq('date_label', '今日');
+    
+    if (userId) {
+        query = query.eq('user_id', userId);
+    }
+    
+    const { data, error } = await query.order('scheduled_time', { ascending: true });
 
     if (error) {
         console.error('获取今日任务失败:', error.message);

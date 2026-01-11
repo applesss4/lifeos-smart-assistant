@@ -35,8 +35,8 @@ const SalaryView: React.FC<SalaryViewProps> = ({ selectedUserId }) => {
             try {
                 // 并行加载设置和打卡统计
                 const [settings, attStats] = await Promise.all([
-                    salaryService.getSalarySettings(),
-                    attendanceService.getMonthlyStats()
+                    salaryService.getSalarySettings(selectedUserId),
+                    attendanceService.getMonthlyStats(undefined, undefined, selectedUserId)
                 ]);
 
                 if (settings) {
@@ -76,7 +76,7 @@ const SalaryView: React.FC<SalaryViewProps> = ({ selectedUserId }) => {
             }
         };
         fetchData();
-    }, []);
+    }, [selectedUserId]); // 添加 selectedUserId 作为依赖
 
     // 监听本地变化实时重新计算（仅用于UI展示，不保存）
     useEffect(() => {
@@ -98,7 +98,7 @@ const SalaryView: React.FC<SalaryViewProps> = ({ selectedUserId }) => {
                 bonus: bonus,
                 xiaowang_diff: xiaowangDiff,
                 xiaowang_pension: xiaowangPension
-            });
+            }, selectedUserId); // 传入 selectedUserId
             alert('设置已保存');
             setShowSettingsModal(false);
         } catch (error) {
@@ -122,9 +122,6 @@ const SalaryView: React.FC<SalaryViewProps> = ({ selectedUserId }) => {
                         工资设置
                     </button>
                 </div>
-                <span className="bg-primary/10 text-primary text-xs font-black px-4 py-1.5 rounded-full uppercase tracking-widest">
-                    计算公式: (正常工时 × {hourlyRate}) + (加班工时 × {overtimeRate}) + {transportFee} + {bonus} - ({xiaowangDiff} + {xiaowangPension})
-                </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

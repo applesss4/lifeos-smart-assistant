@@ -62,9 +62,22 @@ function dbToReport(db: DbDailyReport): DailyReport {
 
 /**
  * 保存日报到数据库
+ * @param report 日报数据
+ * @param targetUserId 可选的目标用户ID，管理员可以为其他用户保存日报
  */
-export async function saveDailyReport(report: Omit<DailyReport, 'id' | 'createdAt'>): Promise<DailyReport> {
+export async function saveDailyReport(report: Omit<DailyReport, 'id' | 'createdAt'>, targetUserId?: string): Promise<DailyReport> {
+    // 获取当前登录用户
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+        throw new Error('用户未登录');
+    }
+
+    // 如果提供了 targetUserId，使用它；否则使用当前用户ID
+    const userId = targetUserId || user.id;
+
     const dbData = {
+        user_id: userId,
         report_date: report.reportDate,
         total_hours: report.totalHours,
         overtime_hours: report.overtimeHours,
@@ -83,7 +96,7 @@ export async function saveDailyReport(report: Omit<DailyReport, 'id' | 'createdA
     // 使用 upsert 来处理同一天的多次保存
     const { data, error } = await supabase
         .from('daily_reports')
-        .upsert(dbData, { onConflict: 'report_date' })
+        .upsert(dbData, { onConflict: 'user_id,report_date' })
         .select()
         .single();
 
@@ -97,13 +110,20 @@ export async function saveDailyReport(report: Omit<DailyReport, 'id' | 'createdA
 
 /**
  * 获取指定日期的日报
+ * @param date 日期字符串
+ * @param userId 可选的用户ID,如果提供则只获取该用户的日报
  */
-export async function getDailyReport(date: string): Promise<DailyReport | null> {
-    const { data, error } = await supabase
+export async function getDailyReport(date: string, userId?: string): Promise<DailyReport | null> {
+    let query = supabase
         .from('daily_reports')
         .select('*')
-        .eq('report_date', date)
-        .single();
+        .eq('report_date', date);
+    
+    if (userId) {
+        query = query.eq('user_id', userId);
+    }
+    
+    const { data, error } = await query.single();
 
     if (error) {
         if (error.code === 'PGRST116') {
@@ -119,11 +139,20 @@ export async function getDailyReport(date: string): Promise<DailyReport | null> 
 
 /**
  * 获取日报列表（分页）
+ * @param limit 每页数量
+ * @param offset 偏移量
+ * @param userId 可选的用户ID,如果提供则只获取该用户的日报
  */
-export async function getDailyReports(limit: number = 30, offset: number = 0): Promise<DailyReport[]> {
-    const { data, error } = await supabase
+export async function getDailyReports(limit: number = 30, offset: number = 0, userId?: string): Promise<DailyReport[]> {
+    let query = supabase
         .from('daily_reports')
-        .select('*')
+        .select('*');
+    
+    if (userId) {
+        query = query.eq('user_id', userId);
+    }
+    
+    const { data, error } = await query
         .order('report_date', { ascending: false })
         .range(offset, offset + limit - 1);
 
@@ -137,10 +166,11 @@ export async function getDailyReports(limit: number = 30, offset: number = 0): P
 
 /**
  * 检查今日日报是否已存档
+ * @param userId 可选的用户ID,如果提供则只检查该用户的日报
  */
-export async function isTodayReportArchived(): Promise<boolean> {
+export async function isTodayReportArchived(userId?: string): Promise<boolean> {
     const today = new Date().toISOString().split('T')[0];
-    const report = await getDailyReport(today);
+    const report = await getDailyReport(today, userId);
     return report !== null;
 }
 

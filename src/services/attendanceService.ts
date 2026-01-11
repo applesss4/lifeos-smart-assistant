@@ -93,15 +93,22 @@ export async function getAttendanceRecords(days: number = 7, userId?: string): P
 
 /**
  * 获取最近两天的打卡记录
+ * @param userId 可选的用户ID,如果提供则只获取该用户的记录
  */
-export async function getRecentRecords(): Promise<AttendanceRecord[]> {
+export async function getRecentRecords(userId?: string): Promise<AttendanceRecord[]> {
     const today = new Date().toISOString().split('T')[0];
     const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
 
-    const { data, error } = await supabase
+    let query = supabase
         .from('attendance_records')
         .select('*')
-        .in('record_date', [today, yesterday])
+        .in('record_date', [today, yesterday]);
+    
+    if (userId) {
+        query = query.eq('user_id', userId);
+    }
+    
+    const { data, error } = await query
         .order('record_date', { ascending: false })
         .order('record_time', { ascending: false });
 
@@ -115,14 +122,19 @@ export async function getRecentRecords(): Promise<AttendanceRecord[]> {
 
 /**
  * 打卡（上班或下班）
+ * @param type 打卡类型
+ * @param targetUserId 可选的目标用户ID，管理员可以为其他用户打卡
  */
-export async function punch(type: '上班' | '下班'): Promise<AttendanceRecord> {
+export async function punch(type: '上班' | '下班', targetUserId?: string): Promise<AttendanceRecord> {
     // 获取当前登录用户
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
         throw new Error('用户未登录');
     }
+
+    // 如果提供了 targetUserId，使用它；否则使用当前用户ID
+    const userId = targetUserId || user.id;
 
     const now = new Date();
     const recordDate = now.toISOString().split('T')[0];
@@ -131,7 +143,7 @@ export async function punch(type: '上班' | '下班'): Promise<AttendanceRecord
     const { data, error } = await supabase
         .from('attendance_records')
         .insert({
-            user_id: user.id, // 添加 user_id
+            user_id: userId,
             record_date: recordDate,
             record_time: recordTime,
             record_type: type,
@@ -149,25 +161,32 @@ export async function punch(type: '上班' | '下班'): Promise<AttendanceRecord
 
 /**
  * 上班打卡
+ * @param targetUserId 可选的目标用户ID，管理员可以为其他用户打卡
  */
-export async function punchIn(): Promise<AttendanceRecord> {
-    return punch('上班');
+export async function punchIn(targetUserId?: string): Promise<AttendanceRecord> {
+    return punch('上班', targetUserId);
 }
 
 /**
  * 下班打卡
+ * @param targetUserId 可选的目标用户ID，管理员可以为其他用户打卡
  */
-export async function punchOut(): Promise<AttendanceRecord> {
-    return punch('下班');
+export async function punchOut(targetUserId?: string): Promise<AttendanceRecord> {
+    return punch('下班', targetUserId);
 }
 
 /**
  * 手动补卡
+ * @param date 日期
+ * @param time 时间
+ * @param type 打卡类型
+ * @param targetUserId 可选的目标用户ID，管理员可以为其他用户补卡
  */
 export async function addManualRecord(
     date: string,
     time: string,
-    type: '上班' | '下班'
+    type: '上班' | '下班',
+    targetUserId?: string
 ): Promise<AttendanceRecord> {
     // 获取当前登录用户
     const { data: { user } } = await supabase.auth.getUser();
@@ -176,11 +195,14 @@ export async function addManualRecord(
         throw new Error('用户未登录');
     }
 
+    // 如果提供了 targetUserId，使用它；否则使用当前用户ID
+    const userId = targetUserId || user.id;
+
     const roundedTime = roundTimeToNearestHalfHour(time);
     const { data, error } = await supabase
         .from('attendance_records')
         .insert({
-            user_id: user.id, // 添加 user_id
+            user_id: userId,
             record_date: date,
             record_time: roundedTime,
             record_type: type,
@@ -231,8 +253,11 @@ function calculateNetWorkMinutes(inTimeStr: string, outTimeStr: string, dateStr:
 
 /**
  * 获取月度统计
+ * @param year 年份
+ * @param month 月份
+ * @param userId 可选的用户ID,如果提供则只获取该用户的数据
  */
-export async function getMonthlyStats(year?: number, month?: number): Promise<MonthlyStats> {
+export async function getMonthlyStats(year?: number, month?: number, userId?: string): Promise<MonthlyStats> {
     const now = new Date();
     const targetYear = year || now.getFullYear();
     const targetMonth = month || now.getMonth() + 1;
@@ -241,11 +266,17 @@ export async function getMonthlyStats(year?: number, month?: number): Promise<Mo
     const startDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-01`;
     const endDate = new Date(targetYear, targetMonth, 0).toISOString().split('T')[0];
 
-    const { data, error } = await supabase
+    let query = supabase
         .from('attendance_records')
         .select('*')
         .gte('record_date', startDate)
-        .lte('record_date', endDate)
+        .lte('record_date', endDate);
+    
+    if (userId) {
+        query = query.eq('user_id', userId);
+    }
+    
+    const { data, error } = await query
         .order('record_date', { ascending: true })
         .order('record_time', { ascending: true });
 
@@ -308,14 +339,21 @@ export async function getMonthlyStats(year?: number, month?: number): Promise<Mo
 
 /**
  * 检查今日打卡状态
+ * @param userId 可选的用户ID,如果提供则只检查该用户的状态
  */
-export async function getTodayPunchStatus(): Promise<{ isClockedIn: boolean; lastRecord?: AttendanceRecord }> {
+export async function getTodayPunchStatus(userId?: string): Promise<{ isClockedIn: boolean; lastRecord?: AttendanceRecord }> {
     const today = new Date().toISOString().split('T')[0];
 
-    const { data, error } = await supabase
+    let query = supabase
         .from('attendance_records')
         .select('*')
-        .eq('record_date', today)
+        .eq('record_date', today);
+    
+    if (userId) {
+        query = query.eq('user_id', userId);
+    }
+    
+    const { data, error } = await query
         .order('record_time', { ascending: false })
         .limit(1);
 
@@ -337,13 +375,20 @@ export async function getTodayPunchStatus(): Promise<{ isClockedIn: boolean; las
 
 /**
  * 获取特定日期的统计数据
+ * @param date 日期字符串
+ * @param userId 可选的用户ID,如果提供则只获取该用户的数据
  */
-export async function getDailyStats(date: string): Promise<DailyStats> {
-    const { data, error } = await supabase
+export async function getDailyStats(date: string, userId?: string): Promise<DailyStats> {
+    let query = supabase
         .from('attendance_records')
         .select('*')
-        .eq('record_date', date)
-        .order('record_time', { ascending: true });
+        .eq('record_date', date);
+    
+    if (userId) {
+        query = query.eq('user_id', userId);
+    }
+    
+    const { data, error } = await query.order('record_time', { ascending: true });
 
     if (error) {
         console.error('获取每日记录失败:', error.message);

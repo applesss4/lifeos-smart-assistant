@@ -99,7 +99,7 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
     const handleSubmit = async () => {
         try {
             if (modalMode === 'add') {
-                await attendanceService.addManualRecord(formData.date, formData.time, formData.type);
+                await attendanceService.addManualRecord(formData.date, formData.time, formData.type, selectedUserId); // 传递 selectedUserId 给服务函数
             } else if (editingRecord) {
                 await attendanceService.updateAttendanceRecord(editingRecord.id, formData);
             }
