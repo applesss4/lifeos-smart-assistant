@@ -98,7 +98,7 @@ const Finance: React.FC = () => {
     <div className="flex flex-col space-y-8 pb-12 relative">
       {/* Header */}
       <div className="sticky top-0 z-20 bg-background-light/90 dark:bg-background-dark/90 backdrop-blur-md px-4 py-3 flex items-center justify-between border-b border-gray-200 dark:border-gray-800">
-        <span className="material-symbols-outlined dark:text-white cursor-pointer">arrow_back</span>
+        <div className="w-10"></div>
         <h1 className="text-lg font-bold dark:text-white">财务管理</h1>
         <div className="relative">
           <button
@@ -155,8 +155,8 @@ const Finance: React.FC = () => {
         <div className="bg-white dark:bg-surface-dark p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
           {monthlyData.chartData.length > 0 ? (
             <>
-              <div className="h-48 relative">
-                <ResponsiveContainer width="100%" height="100%">
+              <div className="h-48 min-h-[12rem] relative">
+                <ResponsiveContainer width="100%" height="100%" minHeight={192}>
                   <PieChart>
                     <Pie
                       data={monthlyData.chartData}

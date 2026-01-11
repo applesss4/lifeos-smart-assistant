@@ -63,7 +63,15 @@ export async function getTasks(): Promise<Task[]> {
  * 创建新任务
  */
 export async function createTask(task: Omit<Task, 'id'>): Promise<Task> {
+    // 获取当前登录用户
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+        throw new Error('用户未登录');
+    }
+
     const dbData = {
+        user_id: user.id, // 添加 user_id
         title: task.title,
         scheduled_time: task.time,
         category: task.category,

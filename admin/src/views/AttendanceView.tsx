@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import * as attendanceService from '@/services/attendanceService';
-import { AttendanceRecord } from '@/services/attendanceService';
+import * as attendanceService from '../../../src/services/attendanceService';
+import { AttendanceRecord } from '../../../src/services/attendanceService';
 
 const AttendanceView: React.FC = () => {
     const [records, setRecords] = useState<AttendanceRecord[]>([]);

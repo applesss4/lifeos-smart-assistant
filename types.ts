@@ -14,6 +14,7 @@ export interface Task {
   priority: 'High' | 'Medium' | 'Low';
   completed: boolean;
   date: string;
+  user_id?: string; // 添加用户ID字段用于数据隔离
 }
 
 export interface Transaction {
@@ -25,4 +26,5 @@ export interface Transaction {
   paymentMethod?: string;
   time: string;
   icon: string;
+  user_id?: string; // 添加用户ID字段用于数据隔离
 }

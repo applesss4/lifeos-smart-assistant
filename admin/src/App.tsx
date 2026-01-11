@@ -6,6 +6,8 @@ import FinanceView from './views/FinanceView';
 import ReportsView from './views/ReportsView';
 import TasksView from './views/TasksView';
 import MonthlyStatsView from './views/MonthlyStatsView';
+import { AdminProtectedRoute } from './components/AdminProtectedRoute';
+import { useAuth } from '../../src/contexts/AuthContext';
 
 enum AdminView {
     SALARY = 'salary',
@@ -19,6 +21,7 @@ enum AdminView {
 const App: React.FC = () => {
     const [activeView, setActiveView] = useState<AdminView>(AdminView.SALARY);
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const { user, signOut } = useAuth();
 
     const menuItems = [
         { id: AdminView.SALARY, label: '工资统计', icon: 'payments' },
@@ -28,6 +31,16 @@ const App: React.FC = () => {
         { id: AdminView.TASKS, label: '待办统计', icon: 'checklist' },
         { id: AdminView.MONTHLY_STATS, label: '月末统计', icon: 'analytics' },
     ];
+
+    const handleLogout = async () => {
+        try {
+            await signOut();
+            console.log('✅ 管理员已登出');
+            // AdminProtectedRoute will handle redirect to login
+        } catch (error) {
+            console.error('❌ 登出失败:', error);
+        }
+    };
 
     const renderContent = () => {
         switch (activeView) {
@@ -42,7 +55,8 @@ const App: React.FC = () => {
     };
 
     return (
-        <div className="flex h-screen bg-[#f8f8f5] dark:bg-[#111418] overflow-hidden">
+        <AdminProtectedRoute>
+            <div className="flex h-screen bg-[#f8f8f5] dark:bg-[#111418] overflow-hidden">
             {/* Sidebar */}
             <aside
                 className={`${isSidebarOpen ? 'w-64' : 'w-20'} bg-white dark:bg-[#1c2127] border-r border-gray-200 dark:border-gray-800 transition-all duration-300 flex flex-col`}
@@ -70,7 +84,19 @@ const App: React.FC = () => {
                     ))}
                 </nav>
 
-                <div className="p-4 border-t border-gray-100 dark:border-gray-800">
+                <div className="p-4 border-t border-gray-100 dark:border-gray-800 space-y-2">
+                    {/* Logout Button */}
+                    {isSidebarOpen && (
+                        <button
+                            onClick={handleLogout}
+                            className="w-full flex items-center gap-4 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
+                        >
+                            <span className="material-symbols-outlined">logout</span>
+                            <span className="font-bold text-sm tracking-tight">退出登录</span>
+                        </button>
+                    )}
+                    
+                    {/* Collapse Button */}
                     <button
                         onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                         className="w-full flex items-center justify-center p-2 rounded-lg text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800"
@@ -94,7 +120,7 @@ const App: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="size-8 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700"></div>
-                        <span className="text-sm font-bold dark:text-gray-300">管理员</span>
+                        <span className="text-sm font-bold dark:text-gray-300">{user?.email || '管理员'}</span>
                     </div>
                 </header>
 
@@ -106,6 +132,7 @@ const App: React.FC = () => {
                 </div>
             </main>
         </div>
+        </AdminProtectedRoute>
     );
 };
 

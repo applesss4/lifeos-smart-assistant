@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import * as taskService from '@/services/taskService';
-import { Task } from '@/../types';
+import * as taskService from '../../../src/services/taskService';
+import { Task } from '../../../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
 
 const TasksView: React.FC = () => {
@@ -135,7 +135,7 @@ const TasksView: React.FC = () => {
                 <div className="bg-white dark:bg-[#1c2127] p-8 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm min-h-[400px] flex flex-col">
                     <h3 className="font-bold text-sm text-gray-400 uppercase tracking-widest mb-6">任务完成状态</h3>
                     <div className="flex-1">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minHeight={300}>
                             <PieChart>
                                 <Pie
                                     data={stats.chartData}
@@ -167,7 +167,7 @@ const TasksView: React.FC = () => {
                 <div className="bg-white dark:bg-[#1c2127] p-8 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm min-h-[400px] flex flex-col">
                     <h3 className="font-bold text-sm text-gray-400 uppercase tracking-widest mb-6">任务类别分布</h3>
                     <div className="flex-1">
-                        <ResponsiveContainer width="100%" height="100%">
+                        <ResponsiveContainer width="100%" height="100%" minHeight={300}>
                             <BarChart data={stats.barData}>
                                 <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
                                 <YAxis hide />

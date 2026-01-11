@@ -6,16 +6,63 @@ import Home from './views/Home';
 import Attendance from './views/Attendance';
 import Tasks from './views/Tasks';
 import Finance from './views/Finance';
+import Signup from './views/Signup';
+import Login from './views/Login';
+import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { ProtectedRoute } from './src/components/ProtectedRoute';
+import { isProtectedRoute, defaultRouteGuardConfig } from './src/config/routeGuardConfig';
+import { useSessionExpiryRedirect } from './src/hooks/useSessionExpiry';
+import { useToast } from './src/hooks/useToast';
+import { ToastContainer } from './src/components/ToastContainer';
+import { FullPageLoading } from './src/components/UIFeedback';
+import { OfflineIndicator } from './src/components/OfflineIndicator';
+import { ErrorMonitor } from './src/components/ErrorMonitor';
 
-const App: React.FC = () => {
-  const [activeView, setActiveView] = useState<ViewType>(ViewType.HOME);
+type AppView = ViewType | 'SIGNUP' | 'LOGIN';
+
+const AppContent: React.FC = () => {
+  const { user, loading } = useAuth();
+  const [activeView, setActiveView] = useState<AppView>(ViewType.HOME);
   const [isDarkMode, setIsDarkMode] = useState(false);
-  const [notification, setNotification] = useState<{ message: string; visible: boolean }>({ message: '', visible: false });
+  const toast = useToast();
+  // 保存用户尝试访问的受保护路由，用于登录后重定向
+  const [intendedRoute, setIntendedRoute] = useState<AppView | null>(null);
 
-  const notify = useCallback((message: string) => {
-    setNotification({ message, visible: true });
-    setTimeout(() => setNotification(prev => ({ ...prev, visible: false })), 3000);
-  }, []);
+  // 需求 4.3: 会话过期时自动重定向到登录页面
+  useSessionExpiryRedirect(() => {
+    console.log('⏰ 会话过期 - 重定向到登录页面');
+    toast.warning('您的登录已过期，请重新登录');
+    setActiveView('LOGIN');
+  });
+
+  // 需求 4.4: 登录成功后重定向到用户原本想访问的页面
+  const handleLoginSuccess = useCallback(() => {
+    console.log('✅ 登录成功 - 检查重定向目标');
+    
+    if (intendedRoute && isProtectedRoute(intendedRoute, defaultRouteGuardConfig)) {
+      console.log(`🔄 重定向到原本想访问的页面: ${intendedRoute}`);
+      setActiveView(intendedRoute);
+      setIntendedRoute(null);
+    } else {
+      console.log(`🔄 重定向到默认主页: ${defaultRouteGuardConfig.defaultRoute}`);
+      setActiveView(defaultRouteGuardConfig.defaultRoute as AppView);
+    }
+  }, [intendedRoute]);
+
+  // 处理视图切换，包含路由保护逻辑
+  const handleViewChange = useCallback((view: AppView) => {
+    // 需求 4.1: 检查是否为受保护路由
+    if (isProtectedRoute(view, defaultRouteGuardConfig) && !user && !loading) {
+      console.log(`🚫 尝试访问受保护路由 ${view} - 保存目标并重定向到登录页`);
+      // 保存用户想访问的路由
+      setIntendedRoute(view);
+      // 重定向到登录页
+      setActiveView('LOGIN');
+      return;
+    }
+    
+    setActiveView(view);
+  }, [user, loading]);
 
   useEffect(() => {
     if (isDarkMode) {
@@ -25,39 +72,98 @@ const App: React.FC = () => {
     }
   }, [isDarkMode]);
 
+  // 如果正在加载认证状态，显示加载界面
+  if (loading) {
+    return <FullPageLoading message="加载中..." />;
+  }
+
+  // 如果用户未登录，显示登录或注册页面
+  if (!user) {
+    if (activeView === 'SIGNUP') {
+      return (
+        <>
+          <Signup
+            onSuccess={handleLoginSuccess}
+            onNavigateToLogin={() => setActiveView('LOGIN')}
+          />
+          <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
+        </>
+      );
+    }
+    
+    // 默认显示登录页面
+    return (
+      <>
+        <Login
+          onSuccess={handleLoginSuccess}
+          onNavigateToSignup={() => setActiveView('SIGNUP')}
+        />
+        <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
+      </>
+    );
+  }
+
   const renderView = () => {
+    const notify = (message: string) => toast.info(message);
+    
     switch (activeView) {
       case ViewType.HOME:
-        return <Home onNavigate={setActiveView} onNotify={notify} />;
+        return (
+          <ProtectedRoute onRedirect={() => handleViewChange('LOGIN')}>
+            <Home onNavigate={handleViewChange} onNotify={notify} />
+          </ProtectedRoute>
+        );
       case ViewType.ATTENDANCE:
-        return <Attendance onNotify={notify} />;
+        return (
+          <ProtectedRoute onRedirect={() => handleViewChange('LOGIN')}>
+            <Attendance onNotify={notify} />
+          </ProtectedRoute>
+        );
       case ViewType.TASKS:
-        return <Tasks onNotify={notify} />;
+        return (
+          <ProtectedRoute onRedirect={() => handleViewChange('LOGIN')}>
+            <Tasks onNotify={notify} />
+          </ProtectedRoute>
+        );
       case ViewType.FINANCE:
-        return <Finance />;
+        return (
+          <ProtectedRoute onRedirect={() => handleViewChange('LOGIN')}>
+            <Finance />
+          </ProtectedRoute>
+        );
       default:
-        return <Home onNavigate={setActiveView} onNotify={notify} />;
+        return (
+          <ProtectedRoute onRedirect={() => handleViewChange('LOGIN')}>
+            <Home onNavigate={handleViewChange} onNotify={notify} />
+          </ProtectedRoute>
+        );
     }
   };
 
   return (
     <div className="flex flex-col min-h-screen max-w-md mx-auto bg-background-light dark:bg-background-dark relative">
-      {/* Real-time Notification Overlay */}
-      <div
-        className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] transition-all duration-300 transform ${notification.visible ? 'translate-y-0 opacity-100' : '-translate-y-8 opacity-0 pointer-events-none'
-          }`}
-      >
-        <div className="bg-surface-dark/90 backdrop-blur-md text-white px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-white/10">
-          <span className="material-symbols-outlined text-primary text-xl">notifications_active</span>
-          <span className="text-sm font-medium">{notification.message}</span>
-        </div>
-      </div>
+      {/* Offline Indicator */}
+      <OfflineIndicator />
+      
+      {/* Error Monitor (Development Only) */}
+      <ErrorMonitor />
+      
+      {/* Toast Container */}
+      <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
 
       <div className="flex-1 pb-32 overflow-x-hidden no-scrollbar">
         {renderView()}
       </div>
-      <BottomNav activeView={activeView} onViewChange={setActiveView} />
+      <BottomNav activeView={activeView as ViewType} onViewChange={handleViewChange} />
     </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 };
 

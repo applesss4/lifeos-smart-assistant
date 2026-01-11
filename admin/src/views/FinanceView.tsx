@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import * as transactionService from '@/services/transactionService';
-import { Transaction } from '@/../types';
+import * as transactionService from '../../../src/services/transactionService';
+import { Transaction } from '../../../types';
 
 const FinanceView: React.FC = () => {
     const [transactions, setTransactions] = useState<Transaction[]>([]);

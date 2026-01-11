@@ -43,15 +43,16 @@ const Tasks: React.FC<TasksProps> = ({ onNotify }) => {
     if (!task) return;
 
     try {
-      await taskService.toggleTaskComplete(id, !task.completed);
+      const newState = !task.completed;
+      await taskService.toggleTaskComplete(id, newState);
       setTasks(prev => prev.map(t => {
         if (t.id === id) {
-          const newState = !t.completed;
-          onNotify(newState ? `已完成: ${t.title}` : `已恢复: ${t.title}`);
           return { ...t, completed: newState };
         }
         return t;
       }));
+      // 在状态更新之后调用通知
+      onNotify(newState ? `已完成: ${task.title}` : `已恢复: ${task.title}`);
     } catch (error) {
       console.error('更新任务状态失败:', error);
       onNotify('更新失败，请稍后重试');

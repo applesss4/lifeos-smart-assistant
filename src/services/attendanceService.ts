@@ -109,6 +109,13 @@ export async function getRecentRecords(): Promise<AttendanceRecord[]> {
  * 打卡（上班或下班）
  */
 export async function punch(type: '上班' | '下班'): Promise<AttendanceRecord> {
+    // 获取当前登录用户
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+        throw new Error('用户未登录');
+    }
+
     const now = new Date();
     const recordDate = now.toISOString().split('T')[0];
     const recordTime = now.toTimeString().slice(0, 5);
@@ -116,6 +123,7 @@ export async function punch(type: '上班' | '下班'): Promise<AttendanceRecord
     const { data, error } = await supabase
         .from('attendance_records')
         .insert({
+            user_id: user.id, // 添加 user_id
             record_date: recordDate,
             record_time: recordTime,
             record_type: type,
@@ -153,10 +161,18 @@ export async function addManualRecord(
     time: string,
     type: '上班' | '下班'
 ): Promise<AttendanceRecord> {
+    // 获取当前登录用户
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+        throw new Error('用户未登录');
+    }
+
     const roundedTime = roundTimeToNearestHalfHour(time);
     const { data, error } = await supabase
         .from('attendance_records')
         .insert({
+            user_id: user.id, // 添加 user_id
             record_date: date,
             record_time: roundedTime,
             record_type: type,

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import * as attendanceService from '@/services/attendanceService';
-import * as salaryService from '@/services/salaryService';
+import * as attendanceService from '../../../src/services/attendanceService';
+import * as salaryService from '../../../src/services/salaryService';
 
 const SalaryView: React.FC = () => {
     // 薪资设置状态

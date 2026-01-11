@@ -142,11 +142,19 @@ export async function createTransaction(transaction: {
     icon?: string;
     paymentMethod?: string;
 }): Promise<Transaction> {
+    // 获取当前登录用户
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+        throw new Error('用户未登录');
+    }
+
     const now = new Date();
 
     const { data, error } = await supabase
         .from('transactions')
         .insert({
+            user_id: user.id, // 添加 user_id
             name: transaction.name,
             amount: transaction.type === 'Expense' ? -Math.abs(transaction.amount) : Math.abs(transaction.amount),
             transaction_type: transaction.type,

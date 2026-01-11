@@ -12,9 +12,32 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
+// Supabase 客户端配置，包含认证设置
 export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-key'
+  supabaseAnonKey || 'placeholder-key',
+  {
+    auth: {
+      // 自动刷新会话
+      autoRefreshToken: true,
+      // 持久化会话到本地存储
+      persistSession: true,
+      // 检测会话变化
+      detectSessionInUrl: true,
+      // 会话存储键名
+      storageKey: 'lifeos-auth-token',
+      // 会话存储配置
+      storage: window.localStorage,
+      // 流程类型：隐式流程用于单页应用
+      flowType: 'implicit'
+    },
+    // 全局配置
+    global: {
+      headers: {
+        'X-Client-Info': 'lifeos-app'
+      }
+    }
+  }
 );
 
 // 检查连接状态（用于调试）

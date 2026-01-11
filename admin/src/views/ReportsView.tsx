@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import * as dailyReportService from '@/services/dailyReportService';
-import { DailyReport } from '@/services/dailyReportService';
+import * as dailyReportService from '../../../src/services/dailyReportService';
+import { DailyReport } from '../../../src/services/dailyReportService';
 
 const ReportsView: React.FC = () => {
     const [reports, setReports] = useState<DailyReport[]>([]);

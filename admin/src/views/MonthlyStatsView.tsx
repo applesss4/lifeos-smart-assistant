@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import * as attendanceService from '@/services/attendanceService';
-import * as transactionService from '@/services/transactionService';
-import * as taskService from '@/services/taskService';
-import * as salaryService from '@/services/salaryService';
+import * as attendanceService from '../../../src/services/attendanceService';
+import * as transactionService from '../../../src/services/transactionService';
+import * as taskService from '../../../src/services/taskService';
+import * as salaryService from '../../../src/services/salaryService';
 import {
     BarChart,
     Bar,

@@ -11,18 +11,37 @@ export interface SalarySettings {
 }
 
 /**
- * Get salary settings (assumes single row for single user mode)
+ * Get salary settings for current user
  */
 export async function getSalarySettings(): Promise<SalarySettings> {
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+        console.error('获取用户信息失败:', userError?.message);
+        // Return defaults if user not found
+        return {
+            id: '',
+            hourly_rate: 105,
+            overtime_rate: 150,
+            transport_fee: 500,
+            bonus: 2000,
+            xiaowang_diff: 0,
+            xiaowang_pension: 0
+        };
+    }
+
     const { data, error } = await supabase
         .from('salary_settings')
         .select('*')
+        .eq('user_id', user.id)
         .limit(1)
         .single();
 
     if (error) {
-        // If no rows found, return defaults (though migration creates one)
-        if (error.code === 'PGRST116') {
+        // If no rows found or table not accessible (406), return defaults
+        if (error.code === 'PGRST116' || error.code === 'PGRST301') {
+            console.warn('工资设置表不可用，使用默认值');
             return {
                 id: '',
                 hourly_rate: 105,
@@ -33,40 +52,69 @@ export async function getSalarySettings(): Promise<SalarySettings> {
                 xiaowang_pension: 0
             };
         }
-        console.error('Failed to fetch salary settings:', error.message);
-        throw error;
+        console.error('获取工资设置失败:', error.message, error.code);
+        // Return defaults instead of throwing
+        return {
+            id: '',
+            hourly_rate: 105,
+            overtime_rate: 150,
+            transport_fee: 500,
+            bonus: 2000,
+            xiaowang_diff: 0,
+            xiaowang_pension: 0
+        };
     }
 
     return data;
 }
 
 /**
- * Update salary settings
+ * Update salary settings for current user
  */
 export async function updateSalarySettings(settings: Omit<SalarySettings, 'id'>): Promise<SalarySettings> {
-    // Check if a row exists first
+    // Get current user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+        console.error('获取用户信息失败:', userError?.message);
+        throw userError || new Error('用户未登录');
+    }
+
+    // Check if a row exists for this user
     const { data: existing } = await supabase
         .from('salary_settings')
         .select('id')
+        .eq('user_id', user.id)
         .limit(1)
         .single();
 
-    let query;
+    let data, error;
     if (existing) {
-        query = supabase
+        // Update existing record
+        const result = await supabase
             .from('salary_settings')
             .update(settings)
-            .eq('id', existing.id);
+            .eq('id', existing.id)
+            .select()
+            .single();
+        data = result.data;
+        error = result.error;
     } else {
-        query = supabase
+        // Insert new record with user_id
+        const result = await supabase
             .from('salary_settings')
-            .insert(settings);
+            .insert({
+                ...settings,
+                user_id: user.id
+            })
+            .select()
+            .single();
+        data = result.data;
+        error = result.error;
     }
 
-    const { data, error } = await query.select().single();
-
     if (error) {
-        console.error('Failed to update salary settings:', error.message);
+        console.error('更新工资设置失败:', error.message);
         throw error;
     }
 

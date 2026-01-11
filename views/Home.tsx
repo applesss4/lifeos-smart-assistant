@@ -6,6 +6,7 @@ import * as taskService from '../src/services/taskService';
 import * as attendanceService from '../src/services/attendanceService';
 import * as dailyReportService from '../src/services/dailyReportService';
 import * as salaryService from '../src/services/salaryService';
+import { useAuth } from '../src/contexts/AuthContext';
 
 interface HomeProps {
   onNavigate: (view: ViewType) => void;
@@ -13,12 +14,14 @@ interface HomeProps {
 }
 
 const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
+  const { signOut } = useAuth();
   const [homeTasks, setHomeTasks] = useState<Task[]>([]);
   const [todayExpenses, setTodayExpenses] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
   const [showDailyReport, setShowDailyReport] = useState(false);
   const [isSavingReport, setIsSavingReport] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   // 统计数据状态
   const [yesterdayStats, setYesterdayStats] = useState({
@@ -123,6 +126,24 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
     loadData();
   }, [loadData]);
 
+  // 点击外部关闭用户菜单
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (showUserMenu && !target.closest('.user-menu-container')) {
+        setShowUserMenu(false);
+      }
+    };
+
+    if (showUserMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showUserMenu]);
+
   const toggleTask = async (taskId: string) => {
     const task = homeTasks.find(t => t.id === taskId);
     if (!task) return;
@@ -219,12 +240,34 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="relative">
+          <div className="relative user-menu-container">
             <div
-              className="size-12 rounded-full border-2 border-primary/20 bg-cover bg-center"
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className="size-12 rounded-full border-2 border-primary/20 bg-cover bg-center cursor-pointer hover:border-primary/40 transition-colors"
               style={{ backgroundImage: `url('https://picsum.photos/seed/alex/200')` }}
             ></div>
             <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-background-light dark:border-background-dark"></div>
+            
+            {/* User Menu Dropdown */}
+            {showUserMenu && (
+              <div className="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-surface-dark rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                <button
+                  onClick={async () => {
+                    try {
+                      await signOut();
+                      onNotify('已成功退出登录');
+                    } catch (error) {
+                      console.error('退出登录失败:', error);
+                      onNotify('退出登录失败，请稍后重试');
+                    }
+                  }}
+                  className="w-full text-left px-4 py-3 text-sm font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 flex items-center gap-2 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-lg">logout</span>
+                  退出登录
+                </button>
+              </div>
+            )}
           </div>
           <div>
             <p className="text-gray-500 dark:text-gray-400 text-sm font-medium leading-none mb-1">{greeting}，</p>
