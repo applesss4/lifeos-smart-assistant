@@ -5,7 +5,7 @@ export interface AttendanceRecord {
     id: string;
     date: string;
     time: string;
-    type: '上班' | '下班';
+    type: '上班' | '下班' | '休息';
 }
 
 // 数据库中的打卡记录类型
@@ -14,7 +14,7 @@ interface DbAttendanceRecord {
     user_id: string;
     record_date: string;
     record_time: string;
-    record_type: '上班' | '下班';
+    record_type: '上班' | '下班' | '休息';
     created_at: string;
 }
 
@@ -162,6 +162,57 @@ export async function punch(type: '上班' | '下班', targetUserId?: string): P
 }
 
 /**
+ * 记录休息日
+ * @param date 可选的日期，默认为今天
+ * @param targetUserId 可选的目标用户ID，管理员可以为其他用户记录
+ */
+export async function markRestDay(date?: string, targetUserId?: string): Promise<AttendanceRecord> {
+    // 获取当前登录用户
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+        throw new Error('用户未登录');
+    }
+
+    // 如果提供了 targetUserId，使用它；否则使用当前用户ID
+    const userId = targetUserId || user.id;
+
+    const recordDate = date || new Date().toISOString().split('T')[0];
+    const recordTime = '00:00'; // 休息日使用固定时间
+
+    // 检查当天是否已有休息记录
+    const { data: existing } = await supabase
+        .from('attendance_records')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('record_date', recordDate)
+        .eq('record_type', '休息')
+        .single();
+
+    if (existing) {
+        throw new Error('今天已经标记为休息日了');
+    }
+
+    const { data, error } = await supabase
+        .from('attendance_records')
+        .insert({
+            user_id: userId,
+            record_date: recordDate,
+            record_time: recordTime,
+            record_type: '休息',
+        })
+        .select()
+        .single();
+
+    if (error) {
+        console.error('记录休息日失败:', error.message);
+        throw error;
+    }
+
+    return dbToRecord(data);
+}
+
+/**
  * 上班打卡
  * @param targetUserId 可选的目标用户ID，管理员可以为其他用户打卡
  */
@@ -187,7 +238,7 @@ export async function punchOut(targetUserId?: string): Promise<AttendanceRecord>
 export async function addManualRecord(
     date: string,
     time: string,
-    type: '上班' | '下班',
+    type: '上班' | '下班' | '休息',
     targetUserId?: string
 ): Promise<AttendanceRecord> {
     // 获取当前登录用户
@@ -200,13 +251,15 @@ export async function addManualRecord(
     // 如果提供了 targetUserId，使用它；否则使用当前用户ID
     const userId = targetUserId || user.id;
 
-    const roundedTime = roundTimeToNearestHalfHour(time);
+    // 休息日使用固定时间，其他类型舍入时间
+    const recordTime = type === '休息' ? '00:00' : roundTimeToNearestHalfHour(time);
+    
     const { data, error } = await supabase
         .from('attendance_records')
         .insert({
             user_id: userId,
             record_date: date,
-            record_time: roundedTime,
+            record_time: recordTime,
             record_type: type,
         })
         .select()

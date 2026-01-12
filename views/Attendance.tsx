@@ -15,6 +15,8 @@ const Attendance: React.FC<AttendanceProps> = ({ onNotify }) => {
   const [showManualForm, setShowManualForm] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isPunching, setIsPunching] = useState(false);
+  const [isMarkingRest, setIsMarkingRest] = useState(false);
+  const [isRestDay, setIsRestDay] = useState(false);
 
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [monthlyStats, setMonthlyStats] = useState<MonthlyStats>({
@@ -31,7 +33,7 @@ const Attendance: React.FC<AttendanceProps> = ({ onNotify }) => {
   // Form state for manual entry
   const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
   const [formTime, setFormTime] = useState('09:00');
-  const [formType, setFormType] = useState<'上班' | '下班'>('上班');
+  const [formType, setFormType] = useState<'上班' | '下班' | '休息'>('上班');
 
   // 加载数据
   const loadData = useCallback(async () => {
@@ -57,6 +59,12 @@ const Attendance: React.FC<AttendanceProps> = ({ onNotify }) => {
       setRecords(recentRecordsData);
       setMonthlyStats(statsData);
       setIsClockedIn(statusData.isClockedIn);
+
+      // 检查今天是否为休息日
+      const todayRestRecord = recentRecordsData.find(
+        record => record.date === today && record.type === '休息'
+      );
+      setIsRestDay(!!todayRestRecord);
     } catch (error) {
       console.error('加载打卡数据失败:', error);
       onNotify('加载数据失败，请稍后重试');
@@ -102,6 +110,28 @@ const Attendance: React.FC<AttendanceProps> = ({ onNotify }) => {
       onNotify('打卡失败，请稍后重试');
     } finally {
       setIsPunching(false);
+    }
+  };
+
+  const handleMarkRestDay = async () => {
+    if (isMarkingRest) return;
+
+    try {
+      setIsMarkingRest(true);
+      const newRecord = await attendanceService.markRestDay();
+      setRecords([newRecord, ...records]);
+      setIsRestDay(true); // 标记为休息日
+
+      // 刷新月度统计
+      const stats = await attendanceService.getMonthlyStats();
+      setMonthlyStats(stats);
+
+      onNotify("已标记为休息日，好好休息！");
+    } catch (error: any) {
+      console.error('标记休息日失败:', error);
+      onNotify(error.message || '标记休息日失败，请稍后重试');
+    } finally {
+      setIsMarkingRest(false);
     }
   };
 
@@ -154,15 +184,28 @@ const Attendance: React.FC<AttendanceProps> = ({ onNotify }) => {
 
       {/* Main Punch Button */}
       <div className="relative group">
-        <div className={`absolute inset-0 blur-3xl rounded-full animate-pulse transition-colors ${isClockedIn ? 'bg-orange-500/20' : 'bg-blue-500/20'}`}></div>
+        <div className={`absolute inset-0 blur-3xl rounded-full animate-pulse transition-colors ${
+          isRestDay ? 'bg-purple-500/20' : 
+          isClockedIn ? 'bg-orange-500/20' : 'bg-blue-500/20'
+        }`}></div>
         <button
           onClick={handlePunch}
-          disabled={isPunching}
-          className={`relative w-64 h-64 rounded-full bg-gradient-to-br shadow-2xl flex flex-col items-center justify-center text-white active:scale-95 transition-all duration-300 border-4 border-white/10 ${isClockedIn ? 'from-orange-500 to-orange-700' : 'from-blue-500 to-blue-700'
-            } ${isPunching ? 'opacity-70' : ''}`}
+          disabled={isPunching || isRestDay}
+          className={`relative w-64 h-64 rounded-full bg-gradient-to-br shadow-2xl flex flex-col items-center justify-center text-white active:scale-95 transition-all duration-300 border-4 border-white/10 ${
+            isRestDay ? 'from-purple-400 to-purple-600 opacity-60 cursor-not-allowed' :
+            isClockedIn ? 'from-orange-500 to-orange-700' : 'from-blue-500 to-blue-700'
+          } ${isPunching ? 'opacity-70' : ''}`}
         >
           {isPunching ? (
             <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+          ) : isRestDay ? (
+            <>
+              <span className="material-symbols-outlined text-6xl mb-2" style={{ fontVariationSettings: "'FILL' 1" }}>
+                hotel
+              </span>
+              <span className="text-2xl font-bold tracking-widest">休息日</span>
+              <span className="text-purple-100/70 text-sm font-medium mt-1">今天好好休息</span>
+            </>
           ) : (
             <>
               <span className="material-symbols-outlined text-6xl mb-2" style={{ fontVariationSettings: "'FILL' 1" }}>
@@ -175,10 +218,34 @@ const Attendance: React.FC<AttendanceProps> = ({ onNotify }) => {
         </button>
       </div>
 
+      {/* Rest Day Button - 只在非休息日显示 */}
+      {!isRestDay && (
+        <button
+          onClick={handleMarkRestDay}
+          disabled={isMarkingRest}
+          className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 border-2 border-purple-200 dark:border-purple-800 text-purple-600 dark:text-purple-400 font-bold shadow-lg hover:shadow-xl transition-all active:scale-95 disabled:opacity-50"
+        >
+          {isMarkingRest ? (
+            <>
+              <div className="w-5 h-5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+              <span>标记中...</span>
+            </>
+          ) : (
+            <>
+              <span className="material-symbols-outlined">hotel</span>
+              <span>今天休息</span>
+            </>
+          )}
+        </button>
+      )}
+
       <div className="flex items-center gap-4">
         <p className="text-gray-500 text-sm font-medium">
-          当前状态: <span className={`font-bold ${isClockedIn ? 'text-green-500' : 'text-gray-900 dark:text-white'}`}>
-            {isClockedIn ? '已上班' : '已下班'}
+          当前状态: <span className={`font-bold ${
+            isRestDay ? 'text-purple-500' :
+            isClockedIn ? 'text-green-500' : 'text-gray-900 dark:text-white'
+          }`}>
+            {isRestDay ? '休息中' : isClockedIn ? '已上班' : '已下班'}
           </span>
         </p>
         <button
@@ -285,15 +352,25 @@ const Attendance: React.FC<AttendanceProps> = ({ onNotify }) => {
               records.map(record => (
                 <div key={record.id} className="bg-white dark:bg-surface-dark p-4 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between animate-in slide-in-from-left-4 duration-300">
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${record.type === '上班' ? 'bg-green-50 text-green-500 dark:bg-green-900/20' : 'bg-orange-50 text-orange-500 dark:bg-orange-900/20'}`}>
-                      <span className="material-symbols-outlined">{record.type === '上班' ? 'login' : 'logout'}</span>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                      record.type === '上班' ? 'bg-green-50 text-green-500 dark:bg-green-900/20' : 
+                      record.type === '下班' ? 'bg-orange-50 text-orange-500 dark:bg-orange-900/20' :
+                      'bg-purple-50 text-purple-500 dark:bg-purple-900/20'
+                    }`}>
+                      <span className="material-symbols-outlined">
+                        {record.type === '上班' ? 'login' : record.type === '下班' ? 'logout' : 'hotel'}
+                      </span>
                     </div>
                     <div>
-                      <p className="text-sm font-bold dark:text-white">{record.type}打卡</p>
+                      <p className="text-sm font-bold dark:text-white">
+                        {record.type === '休息' ? '休息日' : `${record.type}打卡`}
+                      </p>
                       <p className="text-[10px] text-gray-400">{record.date}</p>
                     </div>
                   </div>
-                  <p className="text-lg font-display font-bold dark:text-white">{record.time}</p>
+                  <p className="text-lg font-display font-bold dark:text-white">
+                    {record.type === '休息' ? '🌙' : record.time}
+                  </p>
                 </div>
               ))
             ) : (
@@ -341,7 +418,7 @@ const Attendance: React.FC<AttendanceProps> = ({ onNotify }) => {
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-gray-400 uppercase tracking-wider">类型</label>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-3">
                     <button
                       type="button"
                       onClick={() => setFormType('上班')}
@@ -355,6 +432,13 @@ const Attendance: React.FC<AttendanceProps> = ({ onNotify }) => {
                       className={`py-3 rounded-xl text-sm font-bold transition-all border-2 ${formType === '下班' ? 'bg-primary/10 border-primary text-primary' : 'bg-gray-50 dark:bg-gray-800 border-transparent dark:text-gray-400'}`}
                     >
                       下班
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormType('休息')}
+                      className={`py-3 rounded-xl text-sm font-bold transition-all border-2 ${formType === '休息' ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-500 text-purple-600 dark:text-purple-400' : 'bg-gray-50 dark:bg-gray-800 border-transparent dark:text-gray-400'}`}
+                    >
+                      休息
                     </button>
                   </div>
                 </div>
