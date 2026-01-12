@@ -16,6 +16,7 @@ const FinanceView: React.FC<FinanceViewProps> = ({ selectedUserId }) => {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [formData, setFormData] = useState({ name: '', amount: '', type: 'Expense' as 'Income' | 'Expense', category: '餐饮', paymentMethod: 'PayPay残高' });
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [showBatchMode, setShowBatchMode] = useState(false);
 
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.checked) {
@@ -43,6 +44,7 @@ const FinanceView: React.FC<FinanceViewProps> = ({ selectedUserId }) => {
             await transactionService.deleteTransactions(Array.from(selectedIds));
             setTransactions(transactions.filter(t => !selectedIds.has(t.id)));
             setSelectedIds(new Set());
+            setShowBatchMode(false); // 删除后退出批量模式
         } catch (error) {
             console.error('批量删除失败:', error);
             alert('批量删除失败');
@@ -131,21 +133,43 @@ const FinanceView: React.FC<FinanceViewProps> = ({ selectedUserId }) => {
             <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-black tracking-tight dark:text-white">收支记录管理</h2>
                 <div className="flex gap-3">
-                    {selectedIds.size > 0 && (
-                        <button
-                            onClick={handleBatchDelete}
-                            className="bg-red-50 dark:bg-red-900/20 text-red-500 border border-red-100 dark:border-red-900 px-6 py-2 rounded-xl font-bold hover:bg-red-100 transition-colors"
-                        >
-                            批量删除 ({selectedIds.size})
-                        </button>
+                    {showBatchMode ? (
+                        <>
+                            {selectedIds.size > 0 && (
+                                <button
+                                    onClick={handleBatchDelete}
+                                    className="bg-red-50 dark:bg-red-900/20 text-red-500 border border-red-100 dark:border-red-900 px-6 py-2 rounded-xl font-bold hover:bg-red-100 transition-colors"
+                                >
+                                    批量删除 ({selectedIds.size})
+                                </button>
+                            )}
+                            <button
+                                onClick={() => {
+                                    setShowBatchMode(false);
+                                    setSelectedIds(new Set());
+                                }}
+                                className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-6 py-2 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                            >
+                                取消批量
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <button
+                                onClick={() => setShowBatchMode(true)}
+                                className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-6 py-2 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                            >
+                                批量操作
+                            </button>
+                            <button
+                                onClick={handleOpenAdd}
+                                className="bg-white dark:bg-[#1c2127] border border-gray-100 dark:border-gray-800 px-6 py-2 rounded-xl font-bold shadow-sm dark:text-gray-300 hover:bg-gray-50 transition-colors"
+                            >
+                                添加记录
+                            </button>
+                            <button className="bg-primary text-white px-6 py-2 rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform">导出数据</button>
+                        </>
                     )}
-                    <button
-                        onClick={handleOpenAdd}
-                        className="bg-white dark:bg-[#1c2127] border border-gray-100 dark:border-gray-800 px-6 py-2 rounded-xl font-bold shadow-sm dark:text-gray-300 hover:bg-gray-50 transition-colors"
-                    >
-                        添加记录
-                    </button>
-                    <button className="bg-primary text-white px-6 py-2 rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform">导出数据</button>
                 </div>
             </div>
 
@@ -153,14 +177,16 @@ const FinanceView: React.FC<FinanceViewProps> = ({ selectedUserId }) => {
                 <table className="w-full text-left">
                     <thead>
                         <tr className="bg-gray-50 dark:bg-[#252b36] border-b border-gray-100 dark:border-gray-800">
-                            <th className="px-6 py-4 w-12">
-                                <input
-                                    type="checkbox"
-                                    onChange={handleSelectAll}
-                                    checked={transactions.length > 0 && selectedIds.size === transactions.length}
-                                    className="rounded border-gray-300 text-primary focus:ring-primary"
-                                />
-                            </th>
+                            {showBatchMode && (
+                                <th className="px-6 py-4 w-12">
+                                    <input
+                                        type="checkbox"
+                                        onChange={handleSelectAll}
+                                        checked={transactions.length > 0 && selectedIds.size === transactions.length}
+                                        className="rounded border-gray-300 text-primary focus:ring-primary"
+                                    />
+                                </th>
+                            )}
                             <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">交易名称</th>
                             <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">分类</th>
                             <th className="px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">日期时间</th>
@@ -171,14 +197,16 @@ const FinanceView: React.FC<FinanceViewProps> = ({ selectedUserId }) => {
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                         {transactions.map((tx) => (
                             <tr key={tx.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
-                                <td className="px-6 py-4">
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedIds.has(tx.id)}
-                                        onChange={() => handleSelectOne(tx.id)}
-                                        className="rounded border-gray-300 text-primary focus:ring-primary"
-                                    />
-                                </td>
+                                {showBatchMode && (
+                                    <td className="px-6 py-4">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedIds.has(tx.id)}
+                                            onChange={() => handleSelectOne(tx.id)}
+                                            className="rounded border-gray-300 text-primary focus:ring-primary"
+                                        />
+                                    </td>
+                                )}
                                 <td className="px-6 py-4">
                                     <div className="flex items-center gap-3">
                                         <span className="material-symbols-outlined text-gray-400">{tx.icon}</span>
@@ -215,12 +243,12 @@ const FinanceView: React.FC<FinanceViewProps> = ({ selectedUserId }) => {
                         ))}
                         {isLoading && (
                             <tr>
-                                <td colSpan={5} className="px-6 py-12 text-center text-gray-400 text-sm">加载中...</td>
+                                <td colSpan={showBatchMode ? 6 : 5} className="px-6 py-12 text-center text-gray-400 text-sm">加载中...</td>
                             </tr>
                         )}
                         {!isLoading && transactions.length === 0 && (
                             <tr>
-                                <td colSpan={5} className="px-6 py-12 text-center text-gray-400 text-sm">暂无记录</td>
+                                <td colSpan={showBatchMode ? 6 : 5} className="px-6 py-12 text-center text-gray-400 text-sm">暂无记录</td>
                             </tr>
                         )}
                     </tbody>

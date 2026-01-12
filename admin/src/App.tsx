@@ -79,13 +79,24 @@ const App: React.FC = () => {
         setIsLoadingUsers(true);
         try {
             console.log('开始加载用户列表...');
+            
+            // 首先获取当前管理员的资料
+            const currentAdminProfile = await profileService.getCurrentUserProfile();
+            console.log('当前管理员资料:', currentAdminProfile);
+            
+            // 加载所有用户
             const allUsers = await profileService.getAllUsers();
             console.log('加载到的用户:', allUsers);
             setUsers(allUsers);
-            // 默认选择第一个用户
-            if (allUsers.length > 0 && !selectedUser) {
+            
+            // 默认选择当前管理员自己的数据
+            if (currentAdminProfile && !selectedUser) {
+                setSelectedUser(currentAdminProfile);
+                console.log('默认选择管理员自己:', currentAdminProfile);
+            } else if (allUsers.length > 0 && !selectedUser) {
+                // 如果无法获取管理员资料，则选择第一个用户
                 setSelectedUser(allUsers[0]);
-                console.log('默认选择用户:', allUsers[0]);
+                console.log('默认选择第一个用户:', allUsers[0]);
             } else if (allUsers.length === 0) {
                 console.warn('没有找到任何用户!');
             }

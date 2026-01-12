@@ -20,6 +20,13 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [editingCell, setEditingCell] = useState<{ date: string; type: 'clockIn' | 'clockOut' } | null>(null);
     const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
+    const [showBatchMode, setShowBatchMode] = useState(false);
+    const [showModal, setShowModal] = useState(false);
+    const [modalData, setModalData] = useState({
+        date: new Date().toISOString().split('T')[0],
+        clockInTime: '09:00',
+        clockOutTime: '18:00'
+    });
 
     // 将打卡记录按日期分组
     const groupRecordsByDate = (records: AttendanceRecord[]): DailyAttendance[] => {
@@ -74,6 +81,7 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
             await attendanceService.deleteAttendanceRecords(idsToDelete);
             setRecords(records.filter(r => !idsToDelete.includes(r.id)));
             setSelectedDates(new Set());
+            setShowBatchMode(false); // 删除后退出批量模式
         } catch (error) {
             console.error('批量删除失败:', error);
             alert('批量删除失败');
@@ -154,13 +162,22 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
         }
     };
 
-    const handleAddDay = async () => {
-        const date = prompt('请输入日期 (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
-        if (!date) return;
+    const handleAddDay = () => {
+        setModalData({
+            date: new Date().toISOString().split('T')[0],
+            clockInTime: '09:00',
+            clockOutTime: '18:00'
+        });
+        setShowModal(true);
+    };
 
+    const handleModalSubmit = async () => {
         try {
             // 添加上班打卡
-            await attendanceService.addManualRecord(date, '09:00', '上班', selectedUserId);
+            await attendanceService.addManualRecord(modalData.date, modalData.clockInTime, '上班', selectedUserId);
+            // 添加下班打卡
+            await attendanceService.addManualRecord(modalData.date, modalData.clockOutTime, '下班', selectedUserId);
+            setShowModal(false);
             await fetchRecords();
         } catch (error) {
             console.error('添加失败:', error);
@@ -244,38 +261,45 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
             <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
                 <h2 className="text-2xl font-black tracking-tight dark:text-white">打卡记录管理</h2>
                 <div className="flex gap-3">
-                    {selectedDates.size > 0 && (
-                        <button
-                            onClick={handleBatchDelete}
-                            className="bg-red-50 dark:bg-red-900/20 text-red-500 border border-red-100 dark:border-red-900 px-4 md:px-6 py-2 rounded-xl font-bold hover:bg-red-100 transition-colors text-sm"
-                        >
-                            批量删除 ({selectedDates.size})
-                        </button>
+                    {showBatchMode ? (
+                        <>
+                            {selectedDates.size > 0 && (
+                                <button
+                                    onClick={handleBatchDelete}
+                                    className="bg-red-50 dark:bg-red-900/20 text-red-500 border border-red-100 dark:border-red-900 px-4 md:px-6 py-2 rounded-xl font-bold hover:bg-red-100 transition-colors text-sm"
+                                >
+                                    批量删除 ({selectedDates.size})
+                                </button>
+                            )}
+                            <button
+                                onClick={() => {
+                                    setShowBatchMode(false);
+                                    setSelectedDates(new Set());
+                                }}
+                                className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-4 md:px-6 py-2 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-sm"
+                            >
+                                取消批量
+                            </button>
+                        </>
+                    ) : (
+                        <>
+                            <button
+                                onClick={() => setShowBatchMode(true)}
+                                className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-4 md:px-6 py-2 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-sm"
+                            >
+                                批量操作
+                            </button>
+                            <button
+                                onClick={handleAddDay}
+                                className="bg-white dark:bg-[#1c2127] border border-gray-100 dark:border-gray-800 px-4 md:px-6 py-2 rounded-xl font-bold shadow-sm dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-sm"
+                            >
+                                添加记录
+                            </button>
+                            <button className="bg-primary text-white px-4 md:px-6 py-2 rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 text-sm">
+                                导出 CSV
+                            </button>
+                        </>
                     )}
-                    <button
-                        onClick={handleAddDay}
-                        className="bg-white dark:bg-[#1c2127] border border-gray-100 dark:border-gray-800 px-4 md:px-6 py-2 rounded-xl font-bold shadow-sm dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-sm"
-                    >
-                        添加日期
-                    </button>
-                    <button className="bg-primary text-white px-4 md:px-6 py-2 rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 text-sm">
-                        导出 CSV
-                    </button>
-                </div>
-            </div>
-
-            {/* 提示信息 */}
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900 rounded-xl p-4">
-                <div className="flex items-start gap-3">
-                    <span className="material-symbols-outlined text-blue-500 text-xl">info</span>
-                    <div className="flex-1 text-sm text-blue-700 dark:text-blue-300">
-                        <p className="font-bold mb-1">使用说明</p>
-                        <ul className="space-y-1 text-xs">
-                            <li>• 点击时间输入框可直接修改打卡时间</li>
-                            <li>• 点击 <span className="material-symbols-outlined text-xs align-middle">add_circle</span> 图标可添加缺失的上班或下班记录</li>
-                            <li>• 按 Enter 保存，按 Esc 取消编辑</li>
-                        </ul>
-                    </div>
                 </div>
             </div>
 
@@ -284,14 +308,16 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
                     <table className="w-full text-left">
                         <thead>
                             <tr className="bg-gray-50 dark:bg-[#252b36] border-b border-gray-100 dark:border-gray-800">
-                                <th className="px-4 md:px-6 py-4 w-12">
-                                    <input
-                                        type="checkbox"
-                                        onChange={handleSelectAll}
-                                        checked={dailyRecords.length > 0 && selectedDates.size === dailyRecords.length}
-                                        className="rounded border-gray-300 text-primary focus:ring-primary"
-                                    />
-                                </th>
+                                {showBatchMode && (
+                                    <th className="px-4 md:px-6 py-4 w-12">
+                                        <input
+                                            type="checkbox"
+                                            onChange={handleSelectAll}
+                                            checked={dailyRecords.length > 0 && selectedDates.size === dailyRecords.length}
+                                            className="rounded border-gray-300 text-primary focus:ring-primary"
+                                        />
+                                    </th>
+                                )}
                                 <th className="px-4 md:px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">日期</th>
                                 <th className="px-4 md:px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">上班打卡</th>
                                 <th className="px-4 md:px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">下班打卡</th>
@@ -307,14 +333,16 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
 
                                 return (
                                     <tr key={daily.date} className="group hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
-                                        <td className="px-4 md:px-6 py-4">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedDates.has(daily.date)}
-                                                onChange={() => handleSelectOne(daily.date)}
-                                                className="rounded border-gray-300 text-primary focus:ring-primary"
-                                            />
-                                        </td>
+                                        {showBatchMode && (
+                                            <td className="px-4 md:px-6 py-4">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedDates.has(daily.date)}
+                                                    onChange={() => handleSelectOne(daily.date)}
+                                                    className="rounded border-gray-300 text-primary focus:ring-primary"
+                                                />
+                                            </td>
+                                        )}
                                         <td className="px-4 md:px-6 py-4 font-bold text-sm dark:text-gray-300 whitespace-nowrap">
                                             {formatDate(daily.date)}
                                         </td>
@@ -359,8 +387,8 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
                             })}
                             {!isLoading && dailyRecords.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="px-6 py-12 text-center text-gray-400 text-sm">
-                                        暂无记录，点击"添加日期"开始添加打卡记录
+                                    <td colSpan={showBatchMode ? 6 : 5} className="px-6 py-12 text-center text-gray-400 text-sm">
+                                        暂无记录，点击"添加记录"开始添加打卡记录
                                     </td>
                                 </tr>
                             )}
@@ -368,11 +396,68 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
                     </table>
                 </div>
             </div>
+
+            {/* 添加打卡记录弹窗 */}
+            {showModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="w-full max-w-sm bg-white dark:bg-[#1c2127] rounded-3xl shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800 p-6 space-y-6">
+                        <h3 className="text-xl font-bold dark:text-white">添加打卡记录</h3>
+                        <div className="space-y-4">
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-gray-400 uppercase">日期</label>
+                                <input
+                                    type="date"
+                                    value={modalData.date}
+                                    onChange={e => setModalData({ ...modalData, date: e.target.value })}
+                                    className="w-full h-12 bg-gray-50 dark:bg-gray-800 rounded-xl px-4 font-bold dark:text-white border-none focus:ring-2 focus:ring-primary/20"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-gray-400 uppercase">上班时间</label>
+                                <input
+                                    type="time"
+                                    value={modalData.clockInTime}
+                                    onChange={e => setModalData({ ...modalData, clockInTime: e.target.value })}
+                                    className="w-full h-12 bg-gray-50 dark:bg-gray-800 rounded-xl px-4 font-bold dark:text-white border-none focus:ring-2 focus:ring-primary/20"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-xs font-bold text-gray-400 uppercase">下班时间</label>
+                                <input
+                                    type="time"
+                                    value={modalData.clockOutTime}
+                                    onChange={e => setModalData({ ...modalData, clockOutTime: e.target.value })}
+                                    className="w-full h-12 bg-gray-50 dark:bg-gray-800 rounded-xl px-4 font-bold dark:text-white border-none focus:ring-2 focus:ring-primary/20"
+                                />
+                            </div>
+                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900 rounded-xl p-3">
+                                <p className="text-xs text-blue-700 dark:text-blue-300">
+                                    💡 工作时长将自动扣除1小时午休时间
+                                </p>
+                            </div>
+                        </div>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setShowModal(false)}
+                                className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-xl font-bold"
+                            >
+                                取消
+                            </button>
+                            <button
+                                onClick={handleModalSubmit}
+                                className="flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20"
+                            >
+                                确认添加
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
 
-// 辅助函数：计算工作时长
+// 辅助函数：计算工作时长（扣除12:00-13:00午休时间）
 function calculateWorkHours(clockIn: string, clockOut: string): number {
     const [inHour, inMin] = clockIn.split(':').map(Number);
     const [outHour, outMin] = clockOut.split(':').map(Number);
@@ -380,7 +465,23 @@ function calculateWorkHours(clockIn: string, clockOut: string): number {
     const inMinutes = inHour * 60 + inMin;
     const outMinutes = outHour * 60 + outMin;
     
-    return (outMinutes - inMinutes) / 60;
+    let totalMinutes = outMinutes - inMinutes;
+    
+    // 午休扣除逻辑：12:00-13:00
+    const lunchStart = 12 * 60; // 12:00 = 720分钟
+    const lunchEnd = 13 * 60;   // 13:00 = 780分钟
+    
+    // 计算工作时间与午休时间的重叠部分
+    const overlapStart = Math.max(inMinutes, lunchStart);
+    const overlapEnd = Math.min(outMinutes, lunchEnd);
+    
+    // 如果有重叠，扣除重叠的时间
+    if (overlapEnd > overlapStart) {
+        const lunchDeduction = overlapEnd - overlapStart;
+        totalMinutes -= lunchDeduction;
+    }
+    
+    return totalMinutes / 60;
 }
 
 // 辅助函数：格式化日期显示
