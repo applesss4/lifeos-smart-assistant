@@ -5,17 +5,11 @@ import * as taskService from '../../../src/services/taskService';
 import * as salaryService from '../../../src/services/salaryService';
 import AdminSkeleton from '../components/AdminSkeleton';
 import {
-    BarChart,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    Legend,
     ResponsiveContainer,
     PieChart,
     Pie,
-    Cell
+    Cell,
+    Tooltip
 } from 'recharts';
 
 interface MonthlyStatsViewProps {
@@ -25,7 +19,6 @@ interface MonthlyStatsViewProps {
 const MonthlyStatsView: React.FC<MonthlyStatsViewProps> = ({ selectedUserId }) => {
     const [loading, setLoading] = useState(true);
     const [currentMonth, setCurrentMonth] = useState(new Date().getMonth() + 1);
-    const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
     const [stats, setStats] = useState({
         salary: 0,
@@ -40,11 +33,11 @@ const MonthlyStatsView: React.FC<MonthlyStatsViewProps> = ({ selectedUserId }) =
         tasksPending: 0
     });
 
-    const [chartData, setChartData] = useState<any[]>([]);
+    const currentYear = new Date().getFullYear();
 
     useEffect(() => {
         fetchData();
-    }, [currentMonth, currentYear, selectedUserId]); // 添加 selectedUserId 依赖
+    }, [currentMonth, selectedUserId]);
 
     const fetchData = async () => {
         setLoading(true);
@@ -94,13 +87,6 @@ const MonthlyStatsView: React.FC<MonthlyStatsViewProps> = ({ selectedUserId }) =
                 tasksCompleted: completedTasks,
                 tasksPending: totalTasks - completedTasks
             });
-
-            // Prepare Chart Data (Income vs Expense vs Salary)
-            setChartData([
-                { name: '收入', value: parseFloat(financeStats.income.replace(/,/g, '')) },
-                { name: '支出', value: parseFloat(financeStats.expense.replace(/,/g, '')) },
-                { name: '预计工资', value: salary }
-            ]);
 
         } catch (error) {
             console.error('获取月度统计失败:', error);
@@ -347,7 +333,7 @@ const MonthlyStatsView: React.FC<MonthlyStatsViewProps> = ({ selectedUserId }) =
                                         fontWeight: 600,
                                         padding: '10px 14px'
                                     }}
-                                    formatter={(value: number) => [`${value}小时`, '']}
+                                    formatter={(value: number | undefined) => value !== undefined ? [`${value}小时`, ''] : ['', '']}
                                 />
                             </PieChart>
                         </ResponsiveContainer>
