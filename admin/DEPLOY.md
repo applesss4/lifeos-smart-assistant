@@ -8,11 +8,13 @@
 
 ### 2. 配置项目设置
 
+**重要：不要设置 Root Directory！**
+
 ```
-Framework Preset: Vite
-Root Directory: admin
-Build Command: npm run build
-Output Directory: dist
+Framework Preset: Other
+Root Directory: (留空)
+Build Command: cd admin && npm install && npm run build
+Output Directory: admin/dist
 Install Command: npm install
 ```
 
@@ -52,23 +54,30 @@ npm run preview
 
 在 Vercel 项目设置中可以添加自定义域名。
 
-## ⚠️ 注意事项
+## ⚠️ 重要说明
 
-1. 确保 GitHub 仓库中包含 `admin/package.json` 文件
-2. 环境变量必须以 `VITE_` 开头才能在前端访问
-3. 每次修改环境变量后需要重新部署
-4. 管理端和用户端是两个独立的 Vercel 项目
+1. **不要设置 Root Directory** - 让 Vercel 从根目录构建
+2. **Build Command 必须包含 `cd admin`** - 确保在正确的目录构建
+3. **Output Directory 必须是 `admin/dist`** - 指向管理端的构建输出
+4. 环境变量必须以 `VITE_` 开头才能在前端访问
+5. 每次修改环境变量后需要重新部署
 
 ## 🐛 常见问题
 
-**Q: 构建失败？**
-- 检查 `admin/package.json` 是否存在
-- 确认 Root Directory 设置为 `admin`
+**Q: 构建失败，提示找不到模块？**
+- 确认 Build Command 是 `cd admin && npm install && npm run build`
+- 确认没有设置 Root Directory
 
 **Q: 页面空白？**
 - 检查浏览器控制台错误
 - 确认环境变量已正确配置
+- 确认 Output Directory 设置为 `admin/dist`
 
 **Q: 无法连接数据库？**
 - 检查 Supabase URL 和 Key 是否正确
 - 确认环境变量名称以 `VITE_` 开头
+
+**Q: 构建时间过长？**
+- 这是正常的，因为需要安装根目录和管理端的依赖
+- 通常需要 2-3 分钟
+
