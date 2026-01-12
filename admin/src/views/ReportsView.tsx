@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import * as dailyReportService from '../../../src/services/dailyReportService';
 import { DailyReport } from '../../../src/services/dailyReportService';
+import AdminSkeleton from '../components/AdminSkeleton';
 
 interface ReportsViewProps {
     selectedUserId?: string;
@@ -36,6 +37,10 @@ const ReportsView: React.FC<ReportsViewProps> = ({ selectedUserId }) => {
             alert('删除失败');
         }
     };
+
+    if (isLoading) {
+        return <AdminSkeleton />;
+    }
 
     return (
         <div className="space-y-6">

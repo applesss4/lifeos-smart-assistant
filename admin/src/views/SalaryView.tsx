@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import * as attendanceService from '../../../src/services/attendanceService';
 import * as salaryService from '../../../src/services/salaryService';
+import AdminSkeleton from '../components/AdminSkeleton';
 
 interface SalaryViewProps {
     selectedUserId?: string;
@@ -28,11 +29,13 @@ const SalaryView: React.FC<SalaryViewProps> = ({ selectedUserId }) => {
     });
 
     const [showSettingsModal, setShowSettingsModal] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
 
     // 加载设置和统计数据
     useEffect(() => {
         const fetchData = async () => {
             try {
+                setIsLoading(true);
                 // 并行加载设置和打卡统计
                 const [settings, attStats] = await Promise.all([
                     salaryService.getSalarySettings(selectedUserId),
@@ -73,6 +76,8 @@ const SalaryView: React.FC<SalaryViewProps> = ({ selectedUserId }) => {
                 });
             } catch (error) {
                 console.error('加载数据失败:', error);
+            } finally {
+                setIsLoading(false);
             }
         };
         fetchData();
@@ -108,6 +113,10 @@ const SalaryView: React.FC<SalaryViewProps> = ({ selectedUserId }) => {
             setIsSaving(false);
         }
     };
+
+    if (isLoading) {
+        return <AdminSkeleton />;
+    }
 
     return (
         <div className="space-y-6">

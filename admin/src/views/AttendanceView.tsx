@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import * as attendanceService from '../../../src/services/attendanceService';
 import { AttendanceRecord } from '../../../src/services/attendanceService';
+import AdminSkeleton from '../components/AdminSkeleton';
 
 interface AttendanceViewProps {
     selectedUserId?: string;
@@ -110,6 +111,10 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
             alert('操作失败，请重试');
         }
     };
+
+    if (isLoading) {
+        return <AdminSkeleton />;
+    }
 
     return (
         <div className="space-y-6">

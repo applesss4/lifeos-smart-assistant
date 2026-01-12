@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import * as transactionService from '../../../src/services/transactionService';
 import { Transaction } from '../../../types';
+import AdminSkeleton from '../components/AdminSkeleton';
 
 interface FinanceViewProps {
     selectedUserId?: string;
@@ -120,6 +121,10 @@ const FinanceView: React.FC<FinanceViewProps> = ({ selectedUserId }) => {
             alert('操作失败');
         }
     };
+
+    if (isLoading) {
+        return <AdminSkeleton />;
+    }
 
     return (
         <div className="space-y-6">

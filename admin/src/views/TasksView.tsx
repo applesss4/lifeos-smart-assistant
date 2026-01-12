@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import * as taskService from '../../../src/services/taskService';
 import { Task } from '../../../types';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
+import AdminSkeleton from '../components/AdminSkeleton';
 
 interface TasksViewProps {
     selectedUserId?: string;
@@ -129,6 +130,10 @@ const TasksView: React.FC<TasksViewProps> = ({ selectedUserId }) => {
 
         return { total, completed, pending, chartData, barData };
     }, [tasks]);
+
+    if (isLoading) {
+        return <AdminSkeleton />;
+    }
 
     return (
         <div className="space-y-6">

@@ -3,6 +3,7 @@ import * as attendanceService from '../../../src/services/attendanceService';
 import * as transactionService from '../../../src/services/transactionService';
 import * as taskService from '../../../src/services/taskService';
 import * as salaryService from '../../../src/services/salaryService';
+import AdminSkeleton from '../components/AdminSkeleton';
 import {
     BarChart,
     Bar,
@@ -43,22 +44,22 @@ const MonthlyStatsView: React.FC<MonthlyStatsViewProps> = ({ selectedUserId }) =
 
     useEffect(() => {
         fetchData();
-    }, [currentMonth, currentYear]);
+    }, [currentMonth, currentYear, selectedUserId]); // 添加 selectedUserId 依赖
 
     const fetchData = async () => {
         setLoading(true);
         try {
-            // Fetch all data in parallel
+            // Fetch all data in parallel with selectedUserId
             const [
                 salarySettings,
                 attStats,
                 financeStats,
                 allTasks
             ] = await Promise.all([
-                salaryService.getSalarySettings(),
-                attendanceService.getMonthlyStats(currentYear, currentMonth),
-                transactionService.getMonthlyStats(currentYear, currentMonth),
-                taskService.getTasks() // Note: taskService doesn't have getMonthlyTasks yet, using all for now or filtering in memory
+                salaryService.getSalarySettings(selectedUserId),
+                attendanceService.getMonthlyStats(currentYear, currentMonth, selectedUserId),
+                transactionService.getMonthlyStats(currentYear, currentMonth, selectedUserId),
+                taskService.getTasks(selectedUserId)
             ]);
 
             // Calculate Salary
@@ -112,87 +113,85 @@ const MonthlyStatsView: React.FC<MonthlyStatsViewProps> = ({ selectedUserId }) =
         setCurrentMonth(parseInt(e.target.value));
     };
 
+    if (loading) {
+        return <AdminSkeleton />;
+    }
+
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
             <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-black tracking-tight dark:text-white">月末综合统计</h2>
-                <div className="flex items-center gap-3 bg-white dark:bg-[#1c2127] border border-gray-100 dark:border-gray-800 rounded-xl p-1 pr-4 shadow-sm">
-                    <div className="bg-primary/10 p-2 rounded-lg">
-                        <span className="material-symbols-outlined text-primary text-xl">calendar_month</span>
-                    </div>
+                <h2 className="text-xl font-bold tracking-tight dark:text-white">月末综合统计</h2>
+                <div className="flex items-center gap-2 bg-white dark:bg-[#1c2127] border border-gray-100 dark:border-gray-800 rounded-lg px-3 py-1.5 shadow-sm">
+                    <span className="material-symbols-outlined text-primary text-base">calendar_month</span>
                     <select
                         value={currentMonth}
                         onChange={handleMonthChange}
-                        className="bg-transparent border-none font-bold text-gray-700 dark:text-gray-300 focus:ring-0 cursor-pointer"
+                        className="bg-transparent border-none text-sm font-semibold text-gray-700 dark:text-gray-300 focus:ring-0 cursor-pointer"
                     >
                         {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
                             <option key={m} value={m}>{m}月</option>
                         ))}
                     </select>
-                    <span className="font-bold text-gray-400">{currentYear}年</span>
+                    <span className="text-sm font-semibold text-gray-400">{currentYear}年</span>
                 </div>
             </div>
 
-            {/* Key Metrics Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Key Metrics Grid - 更紧凑的设计 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                 {/* Salary Card */}
-                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg shadow-indigo-500/20">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm">
-                            <span className="material-symbols-outlined text-white">payments</span>
+                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl p-4 text-white shadow-md">
+                    <div className="flex justify-between items-start mb-2">
+                        <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
+                            <span className="material-symbols-outlined text-white text-lg">payments</span>
                         </div>
-                        <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold backdrop-blur-sm">预估</span>
+                        <span className="bg-white/20 px-2 py-0.5 rounded-full text-[10px] font-bold backdrop-blur-sm">预估</span>
                     </div>
-                    <p className="text-indigo-100 text-sm font-bold uppercase tracking-widest mb-1">本月预计工资</p>
-                    <h3 className="text-3xl font-black tracking-tight">{Math.floor(stats.salary).toLocaleString()} 円</h3>
+                    <p className="text-indigo-100 text-[10px] font-bold uppercase tracking-wider mb-1">本月预计工资</p>
+                    <h3 className="text-xl font-black tracking-tight">{Math.floor(stats.salary).toLocaleString()} 円</h3>
                 </div>
 
                 {/* Work Time Card */}
-
-                {/* Work Time Card */}
-                <div className="bg-white dark:bg-[#1c2127] p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-xl">
-                            <span className="material-symbols-outlined text-blue-500">schedule</span>
+                <div className="bg-white dark:bg-[#1c2127] p-4 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                    <div className="flex justify-between items-start mb-2">
+                        <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg">
+                            <span className="material-symbols-outlined text-blue-500 text-lg">schedule</span>
                         </div>
                     </div>
-                    <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">总工时 / 加班</p>
-                    <div className="flex items-baseline gap-2">
-                        <h3 className="text-2xl font-black dark:text-white">{stats.totalHours}h</h3>
-                        <span className="text-sm font-bold text-orange-500">({stats.overtimeHours}h 加班)</span>
+                    <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-1">总工时 / 加班</p>
+                    <div className="flex items-baseline gap-1.5">
+                        <h3 className="text-xl font-black dark:text-white">{stats.totalHours}h</h3>
+                        <span className="text-xs font-bold text-orange-500">+{stats.overtimeHours}h</span>
                     </div>
-                    <p className="text-xs font-bold text-gray-400 mt-2">出勤 {stats.attendanceDays} 天</p>
+                    <p className="text-[10px] font-semibold text-gray-400 mt-1">出勤 {stats.attendanceDays} 天</p>
                 </div>
 
                 {/* Finance Card */}
-                <div className="bg-white dark:bg-[#1c2127] p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="bg-emerald-50 dark:bg-emerald-900/20 p-3 rounded-xl">
-                            <span className="material-symbols-outlined text-emerald-500">account_balance_wallet</span>
+                <div className="bg-white dark:bg-[#1c2127] p-4 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                    <div className="flex justify-between items-start mb-2">
+                        <div className="bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded-lg">
+                            <span className="material-symbols-outlined text-emerald-500 text-lg">account_balance_wallet</span>
                         </div>
                     </div>
-                    <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-1">收支结余</p>
-                    <h3 className={`text-2xl font-black ${stats.balance >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                    <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-1">收支结余</p>
+                    <h3 className={`text-xl font-black ${stats.balance >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
                         {stats.balance >= 0 ? '+' : ''}{stats.balance.toLocaleString()} 円
                     </h3>
-                    <div className="flex gap-3 mt-2 text-xs font-bold">
-                        <span className="text-emerald-500">收 {stats.income.toLocaleString()} 円</span>
-                        <span className="text-red-500">支 {stats.expense.toLocaleString()} 円</span>
+                    <div className="flex gap-2 mt-1 text-[10px] font-semibold">
+                        <span className="text-emerald-500">收 {stats.income.toLocaleString()}</span>
+                        <span className="text-red-500">支 {stats.expense.toLocaleString()}</span>
                     </div>
                 </div>
 
                 {/* Task Card */}
-
-                {/* Task Card */}
-                <div className="bg-white dark:bg-[#1c2127] p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-xl">
-                            <span className="material-symbols-outlined text-orange-500">check_circle</span>
+                <div className="bg-white dark:bg-[#1c2127] p-4 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm">
+                    <div className="flex justify-between items-start mb-2">
+                        <div className="bg-orange-50 dark:bg-orange-900/20 p-2 rounded-lg">
+                            <span className="material-symbols-outlined text-orange-500 text-lg">check_circle</span>
                         </div>
-                        <span className="text-2xl font-black text-gray-900 dark:text-white">{stats.tasksCompleted}/{stats.tasksTotal}</span>
+                        <span className="text-lg font-black text-gray-900 dark:text-white">{stats.tasksCompleted}/{stats.tasksTotal}</span>
                     </div>
-                    <p className="text-gray-400 text-xs font-bold uppercase tracking-widest mb-2">任务完成情况</p>
-                    <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-2 overflow-hidden">
+                    <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-2">任务完成情况</p>
+                    <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
                         <div
                             className="bg-orange-500 h-full rounded-full transition-all duration-500"
                             style={{ width: `${stats.tasksTotal > 0 ? (stats.tasksCompleted / stats.tasksTotal) * 100 : 0}%` }}
@@ -201,58 +200,179 @@ const MonthlyStatsView: React.FC<MonthlyStatsViewProps> = ({ selectedUserId }) =
                 </div>
             </div>
 
-            {/* Analysis Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Financial Overview */}
-                <div className="lg:col-span-2 bg-white dark:bg-[#1c2127] p-8 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
-                    <h3 className="font-bold text-lg dark:text-white mb-6">财务概览分析</h3>
-                    <div className="h-80">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={chartData} layout="vertical" margin={{ left: 20 }}>
-                                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#E2E8F0" />
-                                <XAxis type="number" hide />
-                                <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} width={80} tick={{ fill: '#94a3b8', fontSize: 12, fontWeight: 700 }} />
-                                <Tooltip
-                                    cursor={{ fill: 'transparent' }}
-                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                />
-                                <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={40}>
-                                    {chartData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={index === 0 ? '#10b981' : index === 1 ? '#ef4444' : '#6366f1'} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
+            {/* Analysis Charts - 现代化设计 */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {/* Financial Overview - 卡片式设计 */}
+                <div className="lg:col-span-2 bg-gradient-to-br from-white to-gray-50 dark:from-[#1c2127] dark:to-[#252b36] p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-lg">
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-2.5 rounded-xl shadow-lg shadow-indigo-500/20">
+                                <span className="material-symbols-outlined text-white text-xl">analytics</span>
+                            </div>
+                            <div>
+                                <h3 className="font-black text-base dark:text-white">财务概览分析</h3>
+                                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Financial Overview</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* 卡片式数据展示 */}
+                    <div className="space-y-4">
+                        {/* 收入卡片 */}
+                        <div className="relative overflow-hidden bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-2xl p-5 shadow-lg shadow-emerald-500/20 group hover:shadow-xl hover:shadow-emerald-500/30 transition-all duration-300">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-500"></div>
+                            <div className="absolute bottom-0 left-0 w-24 h-24 bg-black/10 rounded-full -ml-12 -mb-12"></div>
+                            <div className="relative flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl">
+                                        <span className="material-symbols-outlined text-white text-2xl">trending_up</span>
+                                    </div>
+                                    <div>
+                                        <p className="text-emerald-100 text-xs font-bold uppercase tracking-wider mb-1">本月收入</p>
+                                        <h4 className="text-3xl font-black text-white tracking-tight">¥{stats.income.toLocaleString()}</h4>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                                        <span className="text-white text-xs font-bold">+100%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 支出卡片 */}
+                        <div className="relative overflow-hidden bg-gradient-to-br from-red-500 to-rose-600 rounded-2xl p-5 shadow-lg shadow-red-500/20 group hover:shadow-xl hover:shadow-red-500/30 transition-all duration-300">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-500"></div>
+                            <div className="absolute bottom-0 left-0 w-24 h-24 bg-black/10 rounded-full -ml-12 -mb-12"></div>
+                            <div className="relative flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl">
+                                        <span className="material-symbols-outlined text-white text-2xl">trending_down</span>
+                                    </div>
+                                    <div>
+                                        <p className="text-red-100 text-xs font-bold uppercase tracking-wider mb-1">本月支出</p>
+                                        <h4 className="text-3xl font-black text-white tracking-tight">¥{stats.expense.toLocaleString()}</h4>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                                        <span className="text-white text-xs font-bold">-{stats.expense > 0 ? ((stats.expense / (stats.income || 1)) * 100).toFixed(0) : 0}%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 预计工资卡片 */}
+                        <div className="relative overflow-hidden bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-5 shadow-lg shadow-indigo-500/20 group hover:shadow-xl hover:shadow-indigo-500/30 transition-all duration-300">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-500"></div>
+                            <div className="absolute bottom-0 left-0 w-24 h-24 bg-black/10 rounded-full -ml-12 -mb-12"></div>
+                            <div className="relative flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl">
+                                        <span className="material-symbols-outlined text-white text-2xl">payments</span>
+                                    </div>
+                                    <div>
+                                        <p className="text-indigo-100 text-xs font-bold uppercase tracking-wider mb-1">预计工资</p>
+                                        <h4 className="text-3xl font-black text-white tracking-tight">¥{Math.floor(stats.salary).toLocaleString()}</h4>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-full">
+                                        <span className="text-white text-xs font-bold">{stats.attendanceDays}天</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 底部汇总 */}
+                    <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-gray-400 text-lg">account_balance</span>
+                                <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">本月结余</span>
+                            </div>
+                            <div className={`text-2xl font-black ${stats.balance >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+                                {stats.balance >= 0 ? '+' : ''}¥{stats.balance.toLocaleString()}
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                {/* Work vs Life Balance (Concept) */}
-                <div className="bg-white dark:bg-[#1c2127] p-8 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm">
-                    <h3 className="font-bold text-lg dark:text-white mb-6">工时分析</h3>
-                    <div className="h-64 flex justify-center items-center">
+                {/* Work vs Life Balance - 现代化环形图 */}
+                <div className="bg-gradient-to-br from-white to-gray-50 dark:from-[#1c2127] dark:to-[#252b36] p-6 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-lg">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="bg-gradient-to-br from-blue-500 to-cyan-500 p-2.5 rounded-xl shadow-lg shadow-blue-500/20">
+                            <span className="material-symbols-outlined text-white text-xl">schedule</span>
+                        </div>
+                        <div>
+                            <h3 className="font-black text-base dark:text-white">工时分析</h3>
+                            <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Work Hours</p>
+                        </div>
+                    </div>
+                    <div className="h-56 flex justify-center items-center relative">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
+                                <defs>
+                                    <linearGradient id="normalHoursGradient" x1="0" y1="0" x2="1" y2="1">
+                                        <stop offset="0%" stopColor="#3b82f6" stopOpacity={1}/>
+                                        <stop offset="100%" stopColor="#60a5fa" stopOpacity={1}/>
+                                    </linearGradient>
+                                    <linearGradient id="overtimeGradient" x1="0" y1="0" x2="1" y2="1">
+                                        <stop offset="0%" stopColor="#f59e0b" stopOpacity={1}/>
+                                        <stop offset="100%" stopColor="#fbbf24" stopOpacity={1}/>
+                                    </linearGradient>
+                                </defs>
                                 <Pie
                                     data={[
-                                        { name: '正常工时', value: stats.totalHours - stats.overtimeHours, color: '#3b82f6' },
-                                        { name: '加班工时', value: stats.overtimeHours, color: '#f59e0b' }
+                                        { name: '正常工时', value: stats.totalHours - stats.overtimeHours },
+                                        { name: '加班工时', value: stats.overtimeHours }
                                     ]}
-                                    innerRadius={60}
-                                    outerRadius={80}
-                                    paddingAngle={5}
+                                    innerRadius={55}
+                                    outerRadius={75}
+                                    paddingAngle={3}
                                     dataKey="value"
+                                    startAngle={90}
+                                    endAngle={450}
                                 >
-                                    {[
-                                        { name: '正常工时', value: stats.totalHours - stats.overtimeHours, color: '#3b82f6' },
-                                        { name: '加班工时', value: stats.overtimeHours, color: '#f59e0b' }
-                                    ].map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.color} />
-                                    ))}
+                                    <Cell fill="url(#normalHoursGradient)" />
+                                    <Cell fill="url(#overtimeGradient)" />
                                 </Pie>
-                                <Tooltip />
-                                <Legend verticalAlign="bottom" height={36} />
+                                <Tooltip 
+                                    contentStyle={{ 
+                                        fontSize: '12px', 
+                                        borderRadius: '10px',
+                                        border: 'none',
+                                        boxShadow: '0 10px 25px -5px rgb(0 0 0 / 0.1)',
+                                        fontWeight: 600,
+                                        padding: '10px 14px'
+                                    }}
+                                    formatter={(value: number) => [`${value}小时`, '']}
+                                />
                             </PieChart>
                         </ResponsiveContainer>
+                        {/* 中心数据显示 */}
+                        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                            <p className="text-3xl font-black dark:text-white">{stats.totalHours}</p>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">总工时</p>
+                        </div>
+                    </div>
+                    {/* 详细数据 */}
+                    <div className="grid grid-cols-2 gap-3 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-3">
+                            <div className="flex items-center gap-2 mb-1">
+                                <div className="w-2 h-2 rounded-full bg-gradient-to-r from-blue-500 to-blue-400"></div>
+                                <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase">正常</span>
+                            </div>
+                            <p className="text-lg font-black text-blue-600 dark:text-blue-400">{stats.totalHours - stats.overtimeHours}h</p>
+                        </div>
+                        <div className="bg-orange-50 dark:bg-orange-900/20 rounded-xl p-3">
+                            <div className="flex items-center gap-2 mb-1">
+                                <div className="w-2 h-2 rounded-full bg-gradient-to-r from-orange-500 to-orange-400"></div>
+                                <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase">加班</span>
+                            </div>
+                            <p className="text-lg font-black text-orange-600 dark:text-orange-400">{stats.overtimeHours}h</p>
+                        </div>
                     </div>
                 </div>
             </div>
