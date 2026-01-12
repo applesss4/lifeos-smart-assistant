@@ -3,10 +3,10 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { ViewType, Transaction, Task } from '../types';
 import * as transactionService from '../src/services/transactionService';
 import * as taskService from '../src/services/taskService';
-import * as attendanceService from '../src/services/attendanceService';
 import * as dailyReportService from '../src/services/dailyReportService';
-import * as salaryService from '../src/services/salaryService';
 import * as profileService from '../src/services/profileService';
+import * as dashboardService from '../src/services/dashboardService';
+import HomeSkeleton from '../src/components/HomeSkeleton';
 import { useAuth } from '../src/contexts/AuthContext';
 
 interface HomeProps {
@@ -58,84 +58,37 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
   const [newExpenseCategory, setNewExpenseCategory] = useState('其他');
   const [newExpensePaymentMethod, setNewExpensePaymentMethod] = useState('PayPay残高');
 
-  // 加载数据
+  // 加载数据（优化版）
   const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const today = new Date().toISOString().split('T')[0];
-      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-      const now = new Date();
+      
+      // 使用聚合服务加载关键数据
+      const dashboardData = await dashboardService.getDashboardData();
+      
+      setHomeTasks(dashboardData.tasks);
+      setTodayExpenses(dashboardData.expenses);
+      setTodayStats(dashboardData.todayStats);
+      setMonthlyStats(dashboardData.monthlyStats);
+      setUsername(dashboardData.profile.username);
 
-      const [
-        tasksData,
-        expensesData,
-        todayAtt,
-        todayFin,
-        yesterdayAtt,
-        yesterdayFin,
-        monthFin,
-        todayPunch,
-        userProfile
-      ] = await Promise.all([
-        taskService.getTodayTasks(),
-        transactionService.getTodayTransactions(),
-        attendanceService.getDailyStats(today),
-        transactionService.getDailyStats(today),
-        attendanceService.getDailyStats(yesterday),
-        transactionService.getDailyStats(yesterday),
-        transactionService.getMonthlyStats(now.getFullYear(), now.getMonth() + 1),
-        attendanceService.getTodayPunchStatus(),
-        profileService.getCurrentUserProfile()
-      ]);
-
-      setHomeTasks(tasksData);
-      setTodayExpenses(expensesData.filter(t => t.type === 'Expense'));
-
-      // 设置用户名
-      if (userProfile && userProfile.username) {
-        setUsername(userProfile.username);
-      } else if (user?.email) {
-        // 如果没有用户名,使用邮箱前缀
-        setUsername(user.email.split('@')[0]);
-      }
-
-      setTodayStats({
-        hours: todayAtt.totalHours,
-        overtime: todayAtt.overtimeHours,
-        income: todayAtt.totalHours * 105,
-        expense: todayFin.expense,
-        isClockedIn: todayPunch.isClockedIn,
-        startTime: todayPunch.lastRecord?.time
-      });
-
-      setYesterdayStats({
-        hours: yesterdayAtt.totalHours,
-        income: yesterdayAtt.totalHours * 105
-      });
-
-      setMonthlyStats({
-        expense: parseFloat(monthFin.expense.replace(/,/g, '')),
-        budget: 5000 - parseFloat(monthFin.expense.replace(/,/g, '')),
-        overtimePay: 0 // Will be updated with settings
-      });
-
-      // Fetch salary settings for overtime rate
-      const salarySettings = await salaryService.getSalarySettings();
-      if (salarySettings) {
-        // Get monthly stats again to access overtime hours if not available
-        const stats = await attendanceService.getMonthlyStats();
-        setMonthlyStats(prev => ({
-          ...prev,
-          overtimePay: stats.totalHours > 0 ? Math.max(0, stats.totalHours - (stats.attendanceDays * 8)) * salarySettings.overtime_rate : 0
-        }));
-      }
+      // 延迟加载昨日数据（非关键）
+      setTimeout(async () => {
+        try {
+          const yesterdayData = await dashboardService.getYesterdayStats();
+          setYesterdayStats(yesterdayData);
+        } catch (error) {
+          console.error('加载昨日数据失败:', error);
+        }
+      }, 500);
 
     } catch (error) {
       console.error('加载首页数据失败:', error);
+      onNotify('加载数据失败，请稍后重试');
     } finally {
       setIsLoading(false);
     }
-  }, [user]);
+  }, [onNotify]);
 
   useEffect(() => {
     loadData();
@@ -268,12 +221,7 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
   const period = hours < 12 ? '上午' : '下午';
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-        <p className="mt-4 text-gray-500 text-sm">加载中...</p>
-      </div>
-    );
+    return <HomeSkeleton />;
   }
 
   return (

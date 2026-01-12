@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import * as attendanceService from '../src/services/attendanceService';
 import { AttendanceRecord, MonthlyStats } from '../src/services/attendanceService';
 import * as salaryService from '../src/services/salaryService';
+import AttendanceSkeleton from '../src/components/AttendanceSkeleton';
 
 interface AttendanceProps {
   onNotify: (msg: string) => void;
@@ -22,7 +23,7 @@ const Attendance: React.FC<AttendanceProps> = ({ onNotify }) => {
     targetDays: 22,
     targetHours: 176
   });
-  const [yesterdayStats, setYesterdayStats] = useState({
+  const [todayStats, setTodayStats] = useState({
     hours: 0,
     salary: 0
   });
@@ -43,14 +44,14 @@ const Attendance: React.FC<AttendanceProps> = ({ onNotify }) => {
         salaryService.getSalarySettings()
       ]);
 
-      const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-      const yesterdayAtt = await attendanceService.getDailyStats(yesterday);
+      const today = new Date().toISOString().split('T')[0];
+      const todayAtt = await attendanceService.getDailyStats(today);
 
       const hourlyRate = settings ? settings.hourly_rate : 0; // Default or 0
 
-      setYesterdayStats({
-        hours: yesterdayAtt.totalHours,
-        salary: yesterdayAtt.totalHours * hourlyRate
+      setTodayStats({
+        hours: todayAtt.totalHours,
+        salary: todayAtt.totalHours * hourlyRate
       });
 
       setRecords(recentRecordsData);
@@ -136,12 +137,7 @@ const Attendance: React.FC<AttendanceProps> = ({ onNotify }) => {
   const weekLabel = `${weekStart.getMonth() + 1}月${weekStart.getDate()}日 - ${weekEnd.getDate()}日`;
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-        <p className="mt-4 text-gray-500 text-sm">加载中...</p>
-      </div>
-    );
+    return <AttendanceSkeleton />;
   }
 
   return (
@@ -255,7 +251,7 @@ const Attendance: React.FC<AttendanceProps> = ({ onNotify }) => {
           </div>
         </div>
 
-        {/* Info Cards (Yesterday's Salary) */}
+        {/* Info Cards (Today's Salary) */}
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-surface-dark dark:to-surface-dark/80 p-5 rounded-2xl border border-orange-100 dark:border-gray-800 shadow-sm relative overflow-hidden">
             <span className="absolute -right-4 -top-4 material-symbols-outlined text-[100px] text-orange-200/30">paid</span>
@@ -263,16 +259,16 @@ const Attendance: React.FC<AttendanceProps> = ({ onNotify }) => {
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="material-symbols-outlined text-orange-500">account_balance_wallet</span>
-                  <span className="text-xs font-bold dark:text-gray-300">昨日工资</span>
+                  <span className="text-xs font-bold dark:text-gray-300">今日工资</span>
                 </div>
                 <div className="flex items-baseline gap-1">
                   <span className="text-xs font-semibold text-gray-400">¥</span>
-                  <span className="text-3xl font-black dark:text-white">{Math.floor(yesterdayStats.salary).toLocaleString()}</span>
+                  <span className="text-3xl font-black dark:text-white">{Math.floor(todayStats.salary).toLocaleString()}</span>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-[10px] text-gray-400 font-medium uppercase">计薪时长</p>
-                <p className="text-xl font-bold dark:text-white">{yesterdayStats.hours} <span className="text-xs font-normal text-gray-400">h</span></p>
+                <p className="text-[10px] text-gray-400 font-medium uppercase">今日计薪时长</p>
+                <p className="text-xl font-bold dark:text-white">{todayStats.hours} <span className="text-xs font-normal text-gray-400">h</span></p>
               </div>
             </div>
           </div>
