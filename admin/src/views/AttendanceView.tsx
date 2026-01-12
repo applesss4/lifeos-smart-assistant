@@ -12,6 +12,7 @@ interface DailyAttendance {
     date: string;
     clockIn?: AttendanceRecord;
     clockOut?: AttendanceRecord;
+    isRestDay?: boolean;
 }
 
 const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
@@ -24,7 +25,8 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
     const [modalData, setModalData] = useState({
         date: new Date().toISOString().split('T')[0],
         clockInTime: '09:00',
-        clockOutTime: '18:00'
+        clockOutTime: '18:00',
+        isRestDay: false
     });
 
     // 将打卡记录按日期分组
@@ -33,12 +35,16 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
         
         records.forEach(record => {
             if (!grouped.has(record.date)) {
-                grouped.set(record.date, { date: record.date });
+                grouped.set(record.date, { date: record.date, isRestDay: false });
             }
             const daily = grouped.get(record.date)!;
-            if (record.type === '上班') {
+            
+            if (record.type === '休息') {
+                daily.isRestDay = true;
+                daily.clockIn = record; // 保存休息记录以便删除
+            } else if (record.type === '上班') {
                 daily.clockIn = record;
-            } else {
+            } else if (record.type === '下班') {
                 daily.clockOut = record;
             }
         });
@@ -163,17 +169,23 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
         setModalData({
             date: new Date().toISOString().split('T')[0],
             clockInTime: '09:00',
-            clockOutTime: '18:00'
+            clockOutTime: '18:00',
+            isRestDay: false
         });
         setShowModal(true);
     };
 
     const handleModalSubmit = async () => {
         try {
-            // 添加上班打卡
-            await attendanceService.addManualRecord(modalData.date, modalData.clockInTime, '上班', selectedUserId);
-            // 添加下班打卡
-            await attendanceService.addManualRecord(modalData.date, modalData.clockOutTime, '下班', selectedUserId);
+            if (modalData.isRestDay) {
+                // 添加休息日记录
+                await attendanceService.markRestDay(modalData.date, selectedUserId);
+            } else {
+                // 添加上班打卡
+                await attendanceService.addManualRecord(modalData.date, modalData.clockInTime, '上班', selectedUserId);
+                // 添加下班打卡
+                await attendanceService.addManualRecord(modalData.date, modalData.clockOutTime, '下班', selectedUserId);
+            }
             setShowModal(false);
             await fetchRecords();
         } catch (error) {
@@ -201,7 +213,7 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
         useEffect(() => {
             if (isEditing && inputRef.current) {
                 inputRef.current.focus();
-                inputRef.current.showPicker?.(); // 自动打开时间选择器（如果浏览器支持）
+                inputRef.current.select();
             }
         }, [isEditing]);
 
@@ -233,11 +245,9 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
             setIsEditing(true);
         };
 
-        const handleInputClick = (e: React.MouseEvent) => {
+        const handleDisplayClick = (e: React.MouseEvent) => {
             e.stopPropagation();
-            if (!isEditing) {
-                setIsEditing(true);
-            }
+            setIsEditing(true);
         };
 
         const handleBlur = () => {
@@ -245,6 +255,10 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
             setTimeout(() => {
                 handleSave();
             }, 200);
+        };
+
+        const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+            setLocalValue(e.target.value);
         };
 
         // 如果没有值且不在编辑状态，显示+号按钮
@@ -263,20 +277,26 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
 
         return (
             <div className="flex items-center gap-2">
-                <input
-                    ref={inputRef}
-                    type="time"
-                    value={localValue}
-                    onChange={(e) => setLocalValue(e.target.value)}
-                    onClick={handleInputClick}
-                    onBlur={handleBlur}
-                    onKeyDown={handleKeyDown}
-                    className={`px-3 py-1.5 rounded-lg font-mono text-sm transition-all ${
-                        isEditing
-                            ? 'bg-primary/10 border-2 border-primary ring-2 ring-primary/20 dark:bg-primary/20'
-                            : 'bg-gray-50 dark:bg-gray-800 border border-transparent hover:border-gray-200 dark:hover:border-gray-700'
-                    } dark:text-white focus:outline-none cursor-pointer`}
-                />
+                {isEditing ? (
+                    <input
+                        ref={inputRef}
+                        type="text"
+                        value={localValue}
+                        onChange={handleInputChange}
+                        onBlur={handleBlur}
+                        onKeyDown={handleKeyDown}
+                        placeholder="HH:MM"
+                        maxLength={5}
+                        className="w-20 px-3 py-1.5 rounded-lg font-mono text-sm bg-primary/10 border-2 border-primary ring-2 ring-primary/20 dark:bg-primary/20 dark:text-white focus:outline-none"
+                    />
+                ) : (
+                    <button
+                        onClick={handleDisplayClick}
+                        className="px-3 py-1.5 rounded-lg font-mono text-sm bg-gray-50 dark:bg-gray-800 border border-transparent hover:border-gray-200 dark:hover:border-gray-700 dark:text-white transition-all cursor-pointer"
+                    >
+                        {localValue}
+                    </button>
+                )}
                 {recordId && (
                     <button
                         onClick={(e) => {
@@ -369,7 +389,7 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
                         </thead>
                         <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                             {dailyRecords.map((daily) => {
-                                const workHours = daily.clockIn && daily.clockOut
+                                const workHours = !daily.isRestDay && daily.clockIn && daily.clockOut
                                     ? calculateWorkHours(daily.clockIn.time, daily.clockOut.time)
                                     : null;
 
@@ -389,30 +409,63 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
                                             {formatDate(daily.date)}
                                         </td>
                                         <td className="px-4 md:px-6 py-4">
-                                            <TimeInput
-                                                date={daily.date}
-                                                type="clockIn"
-                                                value={daily.clockIn?.time}
-                                                recordId={daily.clockIn?.id}
-                                            />
+                                            {daily.isRestDay ? (
+                                                <div className="flex items-center gap-2">
+                                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg text-xs font-bold">
+                                                        <span className="material-symbols-outlined text-sm">beach_access</span>
+                                                        休息日
+                                                    </span>
+                                                    {daily.clockIn?.id && (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleDeleteRecord(daily.date, 'clockIn');
+                                                            }}
+                                                            className="p-1 text-gray-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                                            type="button"
+                                                            title="删除休息日记录"
+                                                        >
+                                                            <span className="material-symbols-outlined text-sm">close</span>
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <TimeInput
+                                                    date={daily.date}
+                                                    type="clockIn"
+                                                    value={daily.clockIn?.time}
+                                                    recordId={daily.clockIn?.id}
+                                                />
+                                            )}
                                         </td>
                                         <td className="px-4 md:px-6 py-4">
-                                            <TimeInput
-                                                date={daily.date}
-                                                type="clockOut"
-                                                value={daily.clockOut?.time}
-                                                recordId={daily.clockOut?.id}
-                                            />
+                                            {daily.isRestDay ? (
+                                                <span className="text-sm text-gray-400">-</span>
+                                            ) : (
+                                                <TimeInput
+                                                    date={daily.date}
+                                                    type="clockOut"
+                                                    value={daily.clockOut?.time}
+                                                    recordId={daily.clockOut?.id}
+                                                />
+                                            )}
                                         </td>
                                         <td className="px-4 md:px-6 py-4">
-                                            {workHours !== null ? (
+                                            {daily.isRestDay ? (
+                                                <span className="text-sm text-gray-400">-</span>
+                                            ) : workHours !== null ? (
                                                 <span className="text-sm font-bold text-primary">{workHours.toFixed(1)}h</span>
                                             ) : (
                                                 <span className="text-sm text-gray-400">-</span>
                                             )}
                                         </td>
                                         <td className="px-4 md:px-6 py-4">
-                                            {daily.clockIn && daily.clockOut ? (
+                                            {daily.isRestDay ? (
+                                                <span className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400">
+                                                    <span className="size-1.5 rounded-full bg-blue-500"></span>
+                                                    休息日
+                                                </span>
+                                            ) : daily.clockIn && daily.clockOut ? (
                                                 <span className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
                                                     <span className="size-1.5 rounded-full bg-green-500"></span>
                                                     完整
@@ -454,29 +507,56 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
                                     className="w-full h-12 bg-gray-50 dark:bg-gray-800 rounded-xl px-4 font-bold dark:text-white border-none focus:ring-2 focus:ring-primary/20"
                                 />
                             </div>
-                            <div className="space-y-1">
-                                <label className="text-xs font-bold text-gray-400 uppercase">上班时间</label>
+                            
+                            {/* 休息日选项 */}
+                            <div className="flex items-center gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900 rounded-xl">
                                 <input
-                                    type="time"
-                                    value={modalData.clockInTime}
-                                    onChange={e => setModalData({ ...modalData, clockInTime: e.target.value })}
-                                    className="w-full h-12 bg-gray-50 dark:bg-gray-800 rounded-xl px-4 font-bold dark:text-white border-none focus:ring-2 focus:ring-primary/20"
+                                    type="checkbox"
+                                    id="restDayCheckbox"
+                                    checked={modalData.isRestDay}
+                                    onChange={e => setModalData({ ...modalData, isRestDay: e.target.checked })}
+                                    className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
                                 />
+                                <label htmlFor="restDayCheckbox" className="text-sm font-bold text-blue-700 dark:text-blue-300 cursor-pointer flex-1">
+                                    🏖️ 标记为休息日
+                                </label>
                             </div>
-                            <div className="space-y-1">
-                                <label className="text-xs font-bold text-gray-400 uppercase">下班时间</label>
-                                <input
-                                    type="time"
-                                    value={modalData.clockOutTime}
-                                    onChange={e => setModalData({ ...modalData, clockOutTime: e.target.value })}
-                                    className="w-full h-12 bg-gray-50 dark:bg-gray-800 rounded-xl px-4 font-bold dark:text-white border-none focus:ring-2 focus:ring-primary/20"
-                                />
-                            </div>
-                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900 rounded-xl p-3">
-                                <p className="text-xs text-blue-700 dark:text-blue-300">
-                                    💡 工作时长将自动扣除1小时午休时间
-                                </p>
-                            </div>
+
+                            {!modalData.isRestDay && (
+                                <>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-gray-400 uppercase">上班时间</label>
+                                        <input
+                                            type="time"
+                                            value={modalData.clockInTime}
+                                            onChange={e => setModalData({ ...modalData, clockInTime: e.target.value })}
+                                            className="w-full h-12 bg-gray-50 dark:bg-gray-800 rounded-xl px-4 font-bold dark:text-white border-none focus:ring-2 focus:ring-primary/20"
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-bold text-gray-400 uppercase">下班时间</label>
+                                        <input
+                                            type="time"
+                                            value={modalData.clockOutTime}
+                                            onChange={e => setModalData({ ...modalData, clockOutTime: e.target.value })}
+                                            className="w-full h-12 bg-gray-50 dark:bg-gray-800 rounded-xl px-4 font-bold dark:text-white border-none focus:ring-2 focus:ring-primary/20"
+                                        />
+                                    </div>
+                                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900 rounded-xl p-3">
+                                        <p className="text-xs text-blue-700 dark:text-blue-300">
+                                            💡 工作时长将自动扣除1小时午休时间
+                                        </p>
+                                    </div>
+                                </>
+                            )}
+                            
+                            {modalData.isRestDay && (
+                                <div className="bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-900 rounded-xl p-3">
+                                    <p className="text-xs text-green-700 dark:text-green-300">
+                                        ✅ 休息日不计入工作时长，但会记录在考勤中
+                                    </p>
+                                </div>
+                            )}
                         </div>
                         <div className="flex gap-3">
                             <button
