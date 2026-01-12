@@ -18,7 +18,6 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
     const [records, setRecords] = useState<AttendanceRecord[]>([]);
     const [dailyRecords, setDailyRecords] = useState<DailyAttendance[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [editingCell, setEditingCell] = useState<{ date: string; type: 'clockIn' | 'clockOut' } | null>(null);
     const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
     const [showBatchMode, setShowBatchMode] = useState(false);
     const [showModal, setShowModal] = useState(false);
@@ -136,8 +135,6 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
                 );
                 await fetchRecords();
             }
-            
-            setEditingCell(null);
         } catch (error) {
             console.error('更新失败:', error);
             alert('更新失败，请重试');
@@ -192,33 +189,72 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
         recordId?: string;
     }> = ({ date, type, value, recordId }) => {
         const [localValue, setLocalValue] = useState(value || '');
-        const isEditing = editingCell?.date === date && editingCell?.type === type;
+        const [isEditing, setIsEditing] = useState(false);
+        const inputRef = React.useRef<HTMLInputElement>(null);
 
-        const handleBlur = () => {
-            if (localValue && localValue !== value) {
-                handleTimeChange(date, type, localValue);
-            } else {
-                setEditingCell(null);
+        // 同步外部value到localValue
+        useEffect(() => {
+            setLocalValue(value || '');
+        }, [value]);
+
+        // 当进入编辑状态时，自动聚焦输入框
+        useEffect(() => {
+            if (isEditing && inputRef.current) {
+                inputRef.current.focus();
+                inputRef.current.showPicker?.(); // 自动打开时间选择器（如果浏览器支持）
             }
+        }, [isEditing]);
+
+        const handleSave = async () => {
+            if (localValue && localValue !== value) {
+                await handleTimeChange(date, type, localValue);
+            }
+            setIsEditing(false);
+        };
+
+        const handleCancel = () => {
+            setLocalValue(value || '');
+            setIsEditing(false);
         };
 
         const handleKeyDown = (e: React.KeyboardEvent) => {
             if (e.key === 'Enter') {
-                handleBlur();
+                e.preventDefault();
+                handleSave();
             } else if (e.key === 'Escape') {
-                setLocalValue(value || '');
-                setEditingCell(null);
+                e.preventDefault();
+                handleCancel();
             }
         };
 
+        const handleAddClick = (e: React.MouseEvent) => {
+            e.stopPropagation();
+            setLocalValue('09:00');
+            setIsEditing(true);
+        };
+
+        const handleInputClick = (e: React.MouseEvent) => {
+            e.stopPropagation();
+            if (!isEditing) {
+                setIsEditing(true);
+            }
+        };
+
+        const handleBlur = () => {
+            // 延迟执行，以便删除按钮的点击事件能够触发
+            setTimeout(() => {
+                handleSave();
+            }, 200);
+        };
+
+        // 如果没有值且不在编辑状态，显示+号按钮
         if (!value && !isEditing) {
             return (
                 <button
-                    onClick={() => {
-                        setEditingCell({ date, type });
-                        setLocalValue('09:00');
-                    }}
+                    onClick={handleAddClick}
                     className="text-gray-400 hover:text-primary transition-colors text-sm"
+                    type="button"
+                    title="添加打卡时间"
                 >
                     <span className="material-symbols-outlined text-base">add_circle</span>
                 </button>
@@ -228,22 +264,28 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
         return (
             <div className="flex items-center gap-2">
                 <input
+                    ref={inputRef}
                     type="time"
-                    value={isEditing ? localValue : value}
+                    value={localValue}
                     onChange={(e) => setLocalValue(e.target.value)}
-                    onFocus={() => setEditingCell({ date, type })}
+                    onClick={handleInputClick}
                     onBlur={handleBlur}
                     onKeyDown={handleKeyDown}
                     className={`px-3 py-1.5 rounded-lg font-mono text-sm transition-all ${
                         isEditing
                             ? 'bg-primary/10 border-2 border-primary ring-2 ring-primary/20 dark:bg-primary/20'
                             : 'bg-gray-50 dark:bg-gray-800 border border-transparent hover:border-gray-200 dark:hover:border-gray-700'
-                    } dark:text-white focus:outline-none`}
+                    } dark:text-white focus:outline-none cursor-pointer`}
                 />
                 {recordId && (
                     <button
-                        onClick={() => handleDeleteRecord(date, type)}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteRecord(date, type);
+                        }}
                         className="p-1 text-gray-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                        type="button"
+                        title="删除此打卡记录"
                     >
                         <span className="material-symbols-outlined text-sm">close</span>
                     </button>
