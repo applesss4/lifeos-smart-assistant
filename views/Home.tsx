@@ -76,7 +76,7 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
       setTimeout(async () => {
         try {
           const yesterdayData = await dashboardService.getYesterdayStats();
-          setYesterdayStats(yesterdayData);
+          setYesterdayStats(yesterdayData as { hours: number; income: number });
         } catch (error) {
           console.error('加载昨日数据失败:', error);
         }
@@ -112,7 +112,7 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
     };
   }, [showUserMenu]);
 
-  const toggleTask = async (taskId: string) => {
+  const toggleTask = useCallback(async (taskId: string) => {
     const task = homeTasks.find(t => t.id === taskId);
     if (!task) return;
 
@@ -135,28 +135,50 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
       ));
       onNotify('更新失败，请稍后重试');
     }
-  };
+  }, [homeTasks, onNotify]);
 
-  const handleAddExpense = async (e: React.FormEvent) => {
+  const handleAddExpense = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     const amountNum = parseFloat(newExpenseAmount);
     if (!newExpenseName.trim() || isNaN(amountNum)) return;
 
+    // 创建临时交易对象用于乐观更新
+    const tempId = `temp-${Date.now()}`;
+    const optimisticTx: Transaction = {
+      id: tempId,
+      name: newExpenseName,
+      amount: -amountNum,
+      category: newExpenseCategory,
+      type: 'Expense',
+      time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
+      icon: 'shopping_bag',
+      paymentMethod: newExpensePaymentMethod
+    };
+
+    // 乐观更新：立即更新UI
+    setTodayExpenses([optimisticTx, ...todayExpenses]);
+    const savedName = newExpenseName;
+    const savedAmount = amountNum;
+    setNewExpenseName('');
+    setNewExpenseAmount('');
+    setNewExpensePaymentMethod('PayPay残高');
+    setShowAddExpenseModal(false);
+    onNotify(`支出已记录: ${savedName} ¥${savedAmount}`);
+
     try {
-      const newTx = await transactionService.addExpense(newExpenseName, amountNum, newExpenseCategory, newExpensePaymentMethod);
-      setTodayExpenses([newTx, ...todayExpenses]);
-      setNewExpenseName('');
-      setNewExpenseAmount('');
-      setNewExpensePaymentMethod('PayPay残高');
-      setShowAddExpenseModal(false);
-      onNotify(`支出已记录: ${newExpenseName} ¥${amountNum}`);
+      // 同步到服务器
+      const newTx = await transactionService.addExpense(savedName, savedAmount, newExpenseCategory, newExpensePaymentMethod);
+      // 用真实数据替换临时数据
+      setTodayExpenses(prev => prev.map(tx => tx.id === tempId ? newTx : tx));
     } catch (error) {
       console.error('添加支出失败:', error);
+      // 回滚：移除乐观添加的交易
+      setTodayExpenses(prev => prev.filter(tx => tx.id !== tempId));
       onNotify('添加支出失败，请稍后重试');
     }
-  };
+  }, [newExpenseName, newExpenseAmount, newExpenseCategory, newExpensePaymentMethod, todayExpenses, onNotify]);
 
-  const handleSaveUsername = async () => {
+  const handleSaveUsername = useCallback(async () => {
     if (!newUsername.trim()) {
       onNotify('用户名不能为空');
       return;
@@ -180,7 +202,7 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
     } finally {
       setIsSavingUsername(false);
     }
-  };
+  }, [newUsername, onNotify]);
 
   const dailySummary = useMemo(() => {
     const totalHours = todayStats.hours;
@@ -214,11 +236,14 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
   }, [todayStats, todayExpenses, homeTasks]);
 
   // 获取当前时间信息
-  const now = new Date();
-  const hours = now.getHours();
-  const greeting = hours < 12 ? '早上好' : hours < 18 ? '下午好' : '晚上好';
-  const timeStr = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
-  const period = hours < 12 ? '上午' : '下午';
+  const timeInfo = useMemo(() => {
+    const now = new Date();
+    const hours = now.getHours();
+    const greeting = hours < 12 ? '早上好' : hours < 18 ? '下午好' : '晚上好';
+    const timeStr = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const period = hours < 12 ? '上午' : '下午';
+    return { greeting, timeStr, period };
+  }, []); // Empty deps - will only compute once per render
 
   if (isLoading) {
     return <HomeSkeleton />;
@@ -271,7 +296,7 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
             )}
           </div>
           <div>
-            <p className="text-gray-500 dark:text-gray-400 text-sm font-medium leading-none mb-1">{greeting}，</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm font-medium leading-none mb-1">{timeInfo.greeting}，</p>
             <h2 className="text-gray-900 dark:text-white text-xl font-bold leading-none tracking-tight">{username}</h2>
           </div>
         </div>
@@ -297,7 +322,7 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
             <div className="flex justify-between items-end mb-4">
               <div>
                 <p className="text-gray-400 text-xs font-medium mb-1 uppercase tracking-tight">当前时间</p>
-                <h3 className="text-gray-900 dark:text-white text-3xl font-bold font-display tracking-tight">{timeStr} <span className="text-lg text-gray-400 font-sans font-normal">{period}</span></h3>
+                <h3 className="text-gray-900 dark:text-white text-3xl font-bold font-display tracking-tight">{timeInfo.timeStr} <span className="text-lg text-gray-400 font-sans font-normal">{timeInfo.period}</span></h3>
               </div>
               <div className="text-right">
                 <p className={`${todayStats.isClockedIn ? 'text-green-500' : 'text-gray-400'} text-sm font-bold flex items-center justify-end gap-1`}>

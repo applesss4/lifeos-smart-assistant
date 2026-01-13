@@ -1,14 +1,11 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { ViewType } from './types';
 import BottomNav from './components/BottomNav';
-import Home from './views/Home';
-import Attendance from './views/Attendance';
-import Tasks from './views/Tasks';
-import Finance from './views/Finance';
 import Signup from './views/Signup';
 import Login from './views/Login';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
+import { LoadingStateProvider } from './src/contexts/LoadingStateContext';
 import { ProtectedRoute } from './src/components/ProtectedRoute';
 import { isProtectedRoute, defaultRouteGuardConfig } from './src/config/routeGuardConfig';
 import { useSessionExpiryRedirect } from './src/hooks/useSessionExpiry';
@@ -17,6 +14,18 @@ import { ToastContainer } from './src/components/ToastContainer';
 import { FullPageLoading } from './src/components/UIFeedback';
 import { OfflineIndicator } from './src/components/OfflineIndicator';
 import { ErrorMonitor } from './src/components/ErrorMonitor';
+import { createLazyComponent, LoadingFallback } from './src/utils/lazyLoad';
+import { predictivePreload } from './src/utils/preload';
+import HomeSkeleton from './src/components/HomeSkeleton';
+import AttendanceSkeleton from './src/components/AttendanceSkeleton';
+import TasksSkeleton from './src/components/TasksSkeleton';
+import FinanceSkeleton from './src/components/FinanceSkeleton';
+
+// 懒加载视图组件 - 需求 2.3: 使用懒加载技术按需加载视图组件
+const Home = createLazyComponent(() => import('./views/Home'), '加载首页...', <HomeSkeleton />);
+const Attendance = createLazyComponent(() => import('./views/Attendance'), '加载打卡...', <AttendanceSkeleton />);
+const Tasks = createLazyComponent(() => import('./views/Tasks'), '加载任务...', <TasksSkeleton />);
+const Finance = createLazyComponent(() => import('./views/Finance'), '加载财务...', <FinanceSkeleton />);
 
 type AppView = ViewType | 'SIGNUP' | 'LOGIN';
 
@@ -62,6 +71,11 @@ const AppContent: React.FC = () => {
     }
     
     setActiveView(view);
+    
+    // 需求 2.5: 实现基于用户行为的预测预加载
+    if (view !== 'LOGIN' && view !== 'SIGNUP') {
+      predictivePreload(view);
+    }
   }, [user, loading]);
 
   useEffect(() => {
@@ -162,7 +176,9 @@ const AppContent: React.FC = () => {
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <AppContent />
+      <LoadingStateProvider>
+        <AppContent />
+      </LoadingStateProvider>
     </AuthProvider>
   );
 };

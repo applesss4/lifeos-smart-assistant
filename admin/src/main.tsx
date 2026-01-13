@@ -3,6 +3,10 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { AuthProvider } from '../../src/contexts/AuthContext';
+import { initFontOptimizations } from '../../src/utils/fontLoader';
+
+// Initialize font loading optimizations early
+initFontOptimizations();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {

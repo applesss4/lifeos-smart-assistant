@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer } from '../src/components/LazyChart';
 import { Transaction } from '../types';
 import * as transactionService from '../src/services/transactionService';
 import { MonthlyData } from '../src/services/transactionService';
@@ -63,11 +63,14 @@ const Finance: React.FC = () => {
     loadMonthlyData();
   }, [loadMonthlyData]);
 
-  const displayedTransactions = showAllTransactions
-    ? monthlyData.transactions
-    : monthlyData.transactions.slice(0, 4);
+  const displayedTransactions = useMemo(() => 
+    showAllTransactions
+      ? monthlyData.transactions
+      : monthlyData.transactions.slice(0, 4),
+    [showAllTransactions, monthlyData.transactions]
+  );
 
-  const handleAddPocketMoney = async () => {
+  const handleAddPocketMoney = useCallback(async () => {
     const amountNum = parseFloat(newIncomeAmount);
     if (isNaN(amountNum) || amountNum <= 0) return;
 
@@ -83,7 +86,7 @@ const Finance: React.FC = () => {
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [newIncomeAmount, loadMonthlyData]);
 
   if (isLoading) {
     return (

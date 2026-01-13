@@ -1,13 +1,30 @@
 /* Global Styles and Animations */
 
-/* Animations for UI Feedback Components */
+/* Font optimization - ensure swap behavior for all fonts */
+@font-face {
+  font-family: 'Noto Sans SC';
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-display: swap;
+}
+
+/* Animations for UI Feedback Components - GPU Accelerated */
+/* Using translate3d and scale3d for GPU acceleration */
 @keyframes slide-in-right {
   from {
-    transform: translateX(100%);
+    transform: translate3d(100%, 0, 0);
     opacity: 0;
   }
   to {
-    transform: translateX(0);
+    transform: translate3d(0, 0, 0);
     opacity: 1;
   }
 }
@@ -32,29 +49,34 @@
 
 @keyframes scale-in {
   from {
-    transform: scale(0.95);
+    transform: scale3d(0.95, 0.95, 1);
     opacity: 0;
   }
   to {
-    transform: scale(1);
+    transform: scale3d(1, 1, 1);
     opacity: 1;
   }
 }
 
+/* Animation classes with will-change optimization */
 .animate-slide-in-right {
-  animation: slide-in-right 0.3s ease-out;
+  animation: slide-in-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, opacity;
 }
 
 .animate-fade-in {
   animation: fade-in 0.2s ease-out;
+  will-change: opacity;
 }
 
 .animate-fade-out {
   animation: fade-out 0.2s ease-out;
+  will-change: opacity;
 }
 
 .animate-scale-in {
-  animation: scale-in 0.2s ease-out;
+  animation: scale-in 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, opacity;
 }
 
 /* Touch-friendly interactions */
@@ -92,18 +114,22 @@ html {
   outline-offset: 2px;
 }
 
-/* Loading spinner animation */
+/* Loading spinner animation - GPU accelerated */
 @keyframes spin {
+  from {
+    transform: rotate3d(0, 0, 1, 0deg);
+  }
   to {
-    transform: rotate(360deg);
+    transform: rotate3d(0, 0, 1, 360deg);
   }
 }
 
 .animate-spin {
   animation: spin 1s linear infinite;
+  will-change: transform;
 }
 
-/* Pulse animation for skeleton screens */
+/* Pulse animation for skeleton screens - GPU accelerated */
 @keyframes pulse {
   0%, 100% {
     opacity: 1;
@@ -115,6 +141,7 @@ html {
 
 .animate-pulse {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  will-change: opacity;
 }
 
 /* Responsive utilities */
@@ -126,4 +153,65 @@ html {
 button,
 a {
   touch-action: manipulation;
+}
+
+/* Mobile touch optimizations */
+.touch-pan-y {
+  touch-action: pan-y;
+}
+
+.touch-pan-x {
+  touch-action: pan-x;
+}
+
+.touch-none {
+  touch-action: none;
+}
+
+/* Scrollable containers optimization */
+.scroll-container {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  will-change: scroll-position;
+}
+
+/* Prevent pull-to-refresh on mobile */
+body {
+  overscroll-behavior-y: contain;
+}
+
+/* Optimize scrolling performance */
+.smooth-scroll {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* GPU acceleration utilities */
+.gpu-accelerated {
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Reduced motion support - respect user preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .animate-slide-in-right,
+  .animate-fade-in,
+  .animate-fade-out,
+  .animate-scale-in {
+    animation: none;
+  }
+  
+  .animate-spin,
+  .animate-pulse {
+    animation: none;
+  }
 }

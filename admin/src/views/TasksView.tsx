@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import * as taskService from '../../../src/services/taskService';
 import { Task } from '../../../types';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from '../../../src/components/LazyChart';
 import AdminSkeleton from '../components/AdminSkeleton';
 
 interface TasksViewProps {

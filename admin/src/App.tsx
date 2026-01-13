@@ -1,15 +1,21 @@
 
 import React, { useState, useEffect } from 'react';
-import SalaryView from './views/SalaryView';
-import AttendanceView from './views/AttendanceView';
-import FinanceView from './views/FinanceView';
-import ReportsView from './views/ReportsView';
-import TasksView from './views/TasksView';
-import MonthlyStatsView from './views/MonthlyStatsView';
 import { AdminProtectedRoute } from './components/AdminProtectedRoute';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { LoadingStateProvider } from './contexts/LoadingStateContext';
 import * as profileService from '../../src/services/profileService';
 import type { UserProfile } from '../../src/services/profileService';
+import { createLazyComponent } from '../../src/utils/lazyLoad';
+import { predictivePreloadAdmin, preloadAdminView } from './utils/adminPreload';
+import AdminSkeleton from './components/AdminSkeleton';
+
+// 懒加载管理后台视图组件 - 需求 2.3: 使用懒加载技术按需加载视图组件
+const SalaryView = createLazyComponent(() => import('./views/SalaryView'), '加载工资统计...', <AdminSkeleton />);
+const AttendanceView = createLazyComponent(() => import('./views/AttendanceView'), '加载打卡管理...', <AdminSkeleton />);
+const FinanceView = createLazyComponent(() => import('./views/FinanceView'), '加载收支管理...', <AdminSkeleton />);
+const ReportsView = createLazyComponent(() => import('./views/ReportsView'), '加载日报管理...', <AdminSkeleton />);
+const TasksView = createLazyComponent(() => import('./views/TasksView'), '加载待办统计...', <AdminSkeleton />);
+const MonthlyStatsView = createLazyComponent(() => import('./views/MonthlyStatsView'), '加载月末统计...', <AdminSkeleton />);
 
 enum AdminView {
     SALARY = 'salary',
@@ -117,6 +123,9 @@ const App: React.FC = () => {
         if (isMobile) {
             setIsMobileMenuOpen(false);
         }
+        
+        // 需求 2.5: 实现基于用户行为的预测预加载
+        predictivePreloadAdmin(view);
     };
 
     const menuItems = [
@@ -154,7 +163,8 @@ const App: React.FC = () => {
 
     return (
         <AdminProtectedRoute>
-            <div className="flex h-screen bg-[#f8f8f5] dark:bg-[#111418] overflow-hidden">
+            <LoadingStateProvider>
+                <div className="flex h-screen bg-[#f8f8f5] dark:bg-[#111418] overflow-hidden">
             {/* Desktop Sidebar */}
             <aside
                 className={`${isSidebarOpen ? 'w-64' : 'w-20'} bg-white dark:bg-[#1c2127] border-r border-gray-200 dark:border-gray-800 transition-all duration-300 flex-col hidden md:flex`}
@@ -171,6 +181,7 @@ const App: React.FC = () => {
                         <button
                             key={item.id}
                             onClick={() => handleViewChange(item.id)}
+                            onMouseEnter={() => item.id !== activeView && preloadAdminView(item.id)}
                             className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all ${activeView === item.id
                                 ? 'bg-primary/10 text-primary'
                                 : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
@@ -240,6 +251,7 @@ const App: React.FC = () => {
                         <button
                             key={item.id}
                             onClick={() => handleViewChange(item.id)}
+                            onTouchStart={() => item.id !== activeView && preloadAdminView(item.id)}
                             className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl transition-all ${activeView === item.id
                                 ? 'bg-primary/10 text-primary'
                                 : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
@@ -364,6 +376,7 @@ const App: React.FC = () => {
                             <button
                                 key={item.id}
                                 onClick={() => handleViewChange(item.id)}
+                                onTouchStart={() => item.id !== activeView && preloadAdminView(item.id)}
                                 className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all min-w-[60px] ${
                                     activeView === item.id
                                         ? 'text-primary'
@@ -385,6 +398,7 @@ const App: React.FC = () => {
                 </nav>
             </main>
         </div>
+            </LoadingStateProvider>
         </AdminProtectedRoute>
     );
 };

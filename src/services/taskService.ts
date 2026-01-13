@@ -1,5 +1,9 @@
 import { supabase } from '../lib/supabase';
 import { Task } from '../../types';
+import { defaultCache } from '../utils/cacheManager';
+
+// Cache TTL for tasks (1 minute)
+const TASKS_CACHE_TTL = 1 * 60 * 1000;
 
 // 数据库中的任务类型
 interface DbTask {
@@ -103,6 +107,9 @@ export async function createTask(task: Omit<Task, 'id'>, targetUserId?: string):
         throw error;
     }
 
+    // Clear cache after creating task
+    clearTaskCache(userId);
+
     return dbToTask(data);
 }
 
@@ -124,6 +131,9 @@ export async function updateTask(id: string, updates: Partial<Task>): Promise<Ta
         throw error;
     }
 
+    // Clear cache after updating task
+    clearTaskCache();
+
     return dbToTask(data);
 }
 
@@ -131,7 +141,9 @@ export async function updateTask(id: string, updates: Partial<Task>): Promise<Ta
  * 切换任务完成状态
  */
 export async function toggleTaskComplete(id: string, completed: boolean): Promise<Task> {
-    return updateTask(id, { completed });
+    const result = await updateTask(id, { completed });
+    // Cache is already cleared in updateTask
+    return result;
 }
 
 /**
@@ -147,6 +159,9 @@ export async function deleteTask(id: string): Promise<void> {
         console.error('删除任务失败:', error.message);
         throw error;
     }
+
+    // Clear cache after deleting task
+    clearTaskCache();
 }
 
 /**
@@ -162,13 +177,48 @@ export async function deleteTasks(ids: string[]): Promise<void> {
         console.error('批量删除任务失败:', error.message);
         throw error;
     }
+
+    // Clear cache after deleting tasks
+    clearTaskCache();
 }
 
 /**
- * 获取今日任务
+ * 获取今日任务（带缓存）
  * @param userId 可选的用户ID,如果提供则只获取该用户的任务
  */
 export async function getTodayTasks(userId?: string): Promise<Task[]> {
+    const cacheKey = `tasks:today:${userId || 'current'}`;
+    
+    // Try to get from cache first
+    const cached = defaultCache.get<Task[]>(cacheKey);
+    if (cached) {
+        // Refresh in background
+        defaultCache.refreshInBackground({
+            key: cacheKey,
+            fetcher: async () => {
+                let query = supabase
+                    .from('tasks')
+                    .select('*')
+                    .eq('date_label', '今日');
+                
+                if (userId) {
+                    query = query.eq('user_id', userId);
+                }
+                
+                const { data, error } = await query.order('scheduled_time', { ascending: true });
+
+                if (error) {
+                    console.error('获取今日任务失败:', error.message);
+                    throw error;
+                }
+
+                return (data || []).map(dbToTask);
+            }
+        });
+        return cached;
+    }
+
+    // Fetch fresh data
     let query = supabase
         .from('tasks')
         .select('*')
@@ -185,5 +235,18 @@ export async function getTodayTasks(userId?: string): Promise<Task[]> {
         throw error;
     }
 
-    return (data || []).map(dbToTask);
+    const tasks = (data || []).map(dbToTask);
+    
+    // Cache the result
+    defaultCache.set(cacheKey, tasks, TASKS_CACHE_TTL);
+    
+    return tasks;
+}
+
+/**
+ * Clear task cache (call after creating/updating/deleting tasks)
+ */
+export function clearTaskCache(userId?: string): void {
+    const cacheKey = `tasks:today:${userId || 'current'}`;
+    defaultCache.clear(cacheKey);
 }

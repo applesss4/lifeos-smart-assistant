@@ -1,0 +1,306 @@
+/**
+ * GPU-Accelerated Animations
+ * 
+ * This file contains optimized CSS animations that use GPU-accelerated properties
+ * (transform, opacity) and will-change hints for better performance.
+ * 
+ * Requirements: 4.1, 4.2, 4.4
+ */
+
+/* ============================================
+   GPU-Accelerated Keyframe Animations
+   ============================================ */
+
+/**
+ * Slide animations using transform (GPU-accelerated)
+ */
+@keyframes gpu-slide-in-right {
+  from {
+    transform: translate3d(100%, 0, 0);
+    opacity: 0;
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+}
+
+@keyframes gpu-slide-in-left {
+  from {
+    transform: translate3d(-100%, 0, 0);
+    opacity: 0;
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+}
+
+@keyframes gpu-slide-in-up {
+  from {
+    transform: translate3d(0, 100%, 0);
+    opacity: 0;
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+}
+
+@keyframes gpu-slide-in-down {
+  from {
+    transform: translate3d(0, -100%, 0);
+    opacity: 0;
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+}
+
+/**
+ * Fade animations using opacity (GPU-accelerated)
+ */
+@keyframes gpu-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes gpu-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/**
+ * Scale animations using transform (GPU-accelerated)
+ */
+@keyframes gpu-scale-in {
+  from {
+    transform: scale3d(0.9, 0.9, 1);
+    opacity: 0;
+  }
+  to {
+    transform: scale3d(1, 1, 1);
+    opacity: 1;
+  }
+}
+
+@keyframes gpu-scale-out {
+  from {
+    transform: scale3d(1, 1, 1);
+    opacity: 1;
+  }
+  to {
+    transform: scale3d(0.9, 0.9, 1);
+    opacity: 0;
+  }
+}
+
+/**
+ * Rotation animations using transform (GPU-accelerated)
+ */
+@keyframes gpu-spin {
+  from {
+    transform: rotate3d(0, 0, 1, 0deg);
+  }
+  to {
+    transform: rotate3d(0, 0, 1, 360deg);
+  }
+}
+
+/**
+ * Pulse animation for loading states
+ */
+@keyframes gpu-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/**
+ * Bounce animation using transform
+ */
+@keyframes gpu-bounce {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -10px, 0);
+  }
+}
+
+/* ============================================
+   Animation Utility Classes
+   ============================================ */
+
+/**
+ * Slide animations with will-change optimization
+ */
+.gpu-animate-slide-in-right {
+  animation: gpu-slide-in-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, opacity;
+}
+
+.gpu-animate-slide-in-left {
+  animation: gpu-slide-in-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, opacity;
+}
+
+.gpu-animate-slide-in-up {
+  animation: gpu-slide-in-up 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, opacity;
+}
+
+.gpu-animate-slide-in-down {
+  animation: gpu-slide-in-down 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, opacity;
+}
+
+/**
+ * Fade animations with will-change optimization
+ */
+.gpu-animate-fade-in {
+  animation: gpu-fade-in 0.2s ease-out;
+  will-change: opacity;
+}
+
+.gpu-animate-fade-out {
+  animation: gpu-fade-out 0.2s ease-out;
+  will-change: opacity;
+}
+
+/**
+ * Scale animations with will-change optimization
+ */
+.gpu-animate-scale-in {
+  animation: gpu-scale-in 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, opacity;
+}
+
+.gpu-animate-scale-out {
+  animation: gpu-scale-out 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, opacity;
+}
+
+/**
+ * Spin animation for loading indicators
+ */
+.gpu-animate-spin {
+  animation: gpu-spin 1s linear infinite;
+  will-change: transform;
+}
+
+/**
+ * Pulse animation for skeleton screens
+ */
+.gpu-animate-pulse {
+  animation: gpu-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  will-change: opacity;
+}
+
+/**
+ * Bounce animation
+ */
+.gpu-animate-bounce {
+  animation: gpu-bounce 1s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* ============================================
+   Performance Optimization Utilities
+   ============================================ */
+
+/**
+ * Force GPU acceleration for elements
+ */
+.gpu-accelerated {
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/**
+ * Optimize for animations - use before animating
+ */
+.will-animate {
+  will-change: transform, opacity;
+}
+
+/**
+ * Remove will-change after animation completes
+ * Apply this class after animation ends to free GPU resources
+ */
+.animation-complete {
+  will-change: auto;
+}
+
+/* ============================================
+   Transition Utilities (GPU-accelerated)
+   ============================================ */
+
+/**
+ * Smooth transitions using GPU-accelerated properties
+ */
+.gpu-transition-fast {
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, opacity;
+}
+
+.gpu-transition-normal {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, opacity;
+}
+
+.gpu-transition-slow {
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform, opacity;
+}
+
+/* ============================================
+   Reduced Motion Support
+   ============================================ */
+
+/**
+ * Respect user's motion preferences
+ * Disable animations for users who prefer reduced motion
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .gpu-animate-slide-in-right,
+  .gpu-animate-slide-in-left,
+  .gpu-animate-slide-in-up,
+  .gpu-animate-slide-in-down,
+  .gpu-animate-fade-in,
+  .gpu-animate-fade-out,
+  .gpu-animate-scale-in,
+  .gpu-animate-scale-out,
+  .gpu-animate-bounce {
+    animation: none;
+  }
+  
+  .gpu-animate-spin,
+  .gpu-animate-pulse {
+    animation: none;
+  }
+}

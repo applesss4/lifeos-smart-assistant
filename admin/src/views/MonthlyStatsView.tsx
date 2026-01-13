@@ -10,7 +10,7 @@ import {
     Pie,
     Cell,
     Tooltip
-} from 'recharts';
+} from '../../../src/components/LazyChart';
 
 interface MonthlyStatsViewProps {
     selectedUserId?: string;

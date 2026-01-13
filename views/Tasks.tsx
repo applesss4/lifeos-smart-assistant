@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Task } from '../types';
 import * as taskService from '../src/services/taskService';
 
@@ -38,28 +38,38 @@ const Tasks: React.FC<TasksProps> = ({ onNotify }) => {
     loadTasks();
   }, [loadTasks]);
 
-  const toggleTask = async (id: string) => {
+  const toggleTask = useCallback(async (id: string) => {
     const task = tasks.find(t => t.id === id);
     if (!task) return;
 
+    const newState = !task.completed;
+
+    // 乐观更新：立即更新UI
+    setTasks(prev => prev.map(t => {
+      if (t.id === id) {
+        return { ...t, completed: newState };
+      }
+      return t;
+    }));
+    onNotify(newState ? `已完成: ${task.title}` : `已恢复: ${task.title}`);
+
     try {
-      const newState = !task.completed;
+      // 同步到服务器
       await taskService.toggleTaskComplete(id, newState);
+    } catch (error) {
+      console.error('更新任务状态失败:', error);
+      // 回滚：恢复原状态
       setTasks(prev => prev.map(t => {
         if (t.id === id) {
-          return { ...t, completed: newState };
+          return { ...t, completed: !newState };
         }
         return t;
       }));
-      // 在状态更新之后调用通知
-      onNotify(newState ? `已完成: ${task.title}` : `已恢复: ${task.title}`);
-    } catch (error) {
-      console.error('更新任务状态失败:', error);
       onNotify('更新失败，请稍后重试');
     }
-  };
+  }, [tasks, onNotify]);
 
-  const handleAddTask = async (e: React.FormEvent) => {
+  const handleAddTask = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTaskTitle.trim()) return;
 
@@ -81,14 +91,23 @@ const Tasks: React.FC<TasksProps> = ({ onNotify }) => {
       console.error('添加任务失败:', error);
       onNotify('添加任务失败，请稍后重试');
     }
-  };
+  }, [newTaskTitle, newTaskTime, newTaskCategory, newTaskPriority, tasks, onNotify]);
 
   const sections = ['今日', '即将开始', '已完成'];
+
+  // 使用 useMemo 缓存任务分组计算
+  const tasksBySection = useMemo(() => {
+    return {
+      '今日': tasks.filter(t => !t.completed && t.date === '今日'),
+      '即将开始': tasks.filter(t => !t.completed && t.date === '明天'),
+      '已完成': tasks.filter(t => t.completed)
+    };
+  }, [tasks]);
 
   const renderListView = () => (
     <div className="space-y-8">
       {sections.map(sec => {
-        const sectionTasks = tasks.filter(t => (sec === '已完成' ? t.completed : !t.completed && (sec === '今日' ? t.date === '今日' : t.date === '明天')));
+        const sectionTasks = tasksBySection[sec as keyof typeof tasksBySection];
         if (sectionTasks.length === 0) return null;
 
         return (
@@ -143,9 +162,12 @@ const Tasks: React.FC<TasksProps> = ({ onNotify }) => {
   );
 
   const renderTimelineView = () => {
-    const timelineTasks = [...tasks]
-      .filter(t => t.date === '今日')
-      .sort((a, b) => a.time.localeCompare(b.time));
+    const timelineTasks = useMemo(() => 
+      [...tasks]
+        .filter(t => t.date === '今日')
+        .sort((a, b) => a.time.localeCompare(b.time)),
+      [tasks]
+    );
 
     return (
       <div className="space-y-6 pl-4 relative py-4">

@@ -1,4 +1,9 @@
 import { supabase } from '../lib/supabase';
+import { defaultCache } from '../utils/cacheManager';
+import { getLocalDateString, getYesterdayDateString, getDaysAgoDateString } from '../utils/dateHelper';
+
+// Cache TTL for attendance (1 minute)
+const ATTENDANCE_CACHE_TTL = 1 * 60 * 1000;
 
 // 打卡记录类型
 export interface AttendanceRecord {
@@ -67,13 +72,12 @@ export function roundTimeToNearestHalfHour(timeStr: string): string {
  * @param userId 可选的用户ID,如果提供则只获取该用户的记录
  */
 export async function getAttendanceRecords(days: number = 7, userId?: string): Promise<AttendanceRecord[]> {
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
+    const startDate = getDaysAgoDateString(days);
 
     let query = supabase
         .from('attendance_records')
         .select('*')
-        .gte('record_date', startDate.toISOString().split('T')[0]);
+        .gte('record_date', startDate);
     
     if (userId) {
         query = query.eq('user_id', userId);
@@ -96,8 +100,8 @@ export async function getAttendanceRecords(days: number = 7, userId?: string): P
  * @param userId 可选的用户ID,如果提供则只获取该用户的记录
  */
 export async function getRecentRecords(userId?: string): Promise<AttendanceRecord[]> {
-    const today = new Date().toISOString().split('T')[0];
-    const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    const today = getLocalDateString();
+    const yesterday = getYesterdayDateString();
 
     let query = supabase
         .from('attendance_records')
@@ -136,8 +140,21 @@ export async function punch(type: '上班' | '下班', targetUserId?: string): P
     // 如果提供了 targetUserId，使用它；否则使用当前用户ID
     const userId = targetUserId || user.id;
 
+    // 检查今天是否已经打过相同类型的卡
+    const today = getLocalDateString();
+    const { data: existingRecords } = await supabase
+        .from('attendance_records')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('record_date', today)
+        .eq('record_type', type);
+
+    if (existingRecords && existingRecords.length > 0) {
+        throw new Error(type === '上班' ? '今天已经打过上班卡了' : '今天已经打过下班卡了');
+    }
+
     const now = new Date();
-    const recordDate = now.toISOString().split('T')[0];
+    const recordDate = getLocalDateString(now);
     
     // 使用更可靠的方式获取当前时间（兼容移动端）
     const hours = String(now.getHours()).padStart(2, '0');
@@ -163,6 +180,9 @@ export async function punch(type: '上班' | '下班', targetUserId?: string): P
         throw error;
     }
 
+    // Clear cache after punching
+    clearAttendanceCache(userId);
+
     return dbToRecord(data);
 }
 
@@ -182,7 +202,7 @@ export async function markRestDay(date?: string, targetUserId?: string): Promise
     // 如果提供了 targetUserId，使用它；否则使用当前用户ID
     const userId = targetUserId || user.id;
 
-    const recordDate = date || new Date().toISOString().split('T')[0];
+    const recordDate = date || getLocalDateString();
     const recordTime = '00:00'; // 休息日使用固定时间
 
     // 检查当天是否已有休息记录
@@ -213,6 +233,9 @@ export async function markRestDay(date?: string, targetUserId?: string): Promise
         console.error('记录休息日失败:', error.message);
         throw error;
     }
+
+    // Clear cache after marking rest day
+    clearAttendanceCache(userId);
 
     return dbToRecord(data);
 }
@@ -324,7 +347,8 @@ export async function getMonthlyStats(year?: number, month?: number, userId?: st
 
     // 计算月份的开始和结束日期
     const startDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-01`;
-    const endDate = new Date(targetYear, targetMonth, 0).toISOString().split('T')[0];
+    const lastDay = new Date(targetYear, targetMonth, 0);
+    const endDate = getLocalDateString(lastDay);
 
     let query = supabase
         .from('attendance_records')
@@ -398,11 +422,28 @@ export async function getMonthlyStats(year?: number, month?: number, userId?: st
 }
 
 /**
- * 检查今日打卡状态
+ * 检查今日打卡状态（带缓存）
  * @param userId 可选的用户ID,如果提供则只检查该用户的状态
  */
-export async function getTodayPunchStatus(userId?: string): Promise<{ isClockedIn: boolean; lastRecord?: AttendanceRecord }> {
-    const today = new Date().toISOString().split('T')[0];
+export async function getTodayPunchStatus(userId?: string): Promise<{ 
+    isClockedIn: boolean; 
+    lastRecord?: AttendanceRecord;
+    hasClockedIn: boolean;
+    hasClockedOut: boolean;
+}> {
+    const today = getLocalDateString();
+    const cacheKey = `punch-status:${today}:${userId || 'current'}`;
+
+    // Try to get from cache first (short TTL for punch status)
+    const cached = defaultCache.get<{ 
+        isClockedIn: boolean; 
+        lastRecord?: AttendanceRecord;
+        hasClockedIn: boolean;
+        hasClockedOut: boolean;
+    }>(cacheKey);
+    if (cached) {
+        return cached;
+    }
 
     let query = supabase
         .from('attendance_records')
@@ -414,8 +455,7 @@ export async function getTodayPunchStatus(userId?: string): Promise<{ isClockedI
     }
     
     const { data, error } = await query
-        .order('record_time', { ascending: false })
-        .limit(1);
+        .order('record_time', { ascending: false });
 
     if (error) {
         console.error('获取今日打卡状态失败:', error.message);
@@ -423,22 +463,61 @@ export async function getTodayPunchStatus(userId?: string): Promise<{ isClockedI
     }
 
     if (!data || data.length === 0) {
-        return { isClockedIn: false };
+        const result = { 
+            isClockedIn: false,
+            hasClockedIn: false,
+            hasClockedOut: false
+        };
+        defaultCache.set(cacheKey, result, ATTENDANCE_CACHE_TTL);
+        return result;
     }
 
+    // 检查今天是否有上班和下班记录
+    const hasClockedIn = data.some(r => r.record_type === '上班');
+    const hasClockedOut = data.some(r => r.record_type === '下班');
+    
     const lastRecord = dbToRecord(data[0]);
-    return {
+    const result = {
         isClockedIn: lastRecord.type === '上班',
         lastRecord,
+        hasClockedIn,
+        hasClockedOut
     };
+
+    // Cache with short TTL since punch status changes frequently
+    defaultCache.set(cacheKey, result, ATTENDANCE_CACHE_TTL);
+    
+    return result;
 }
 
 /**
- * 获取特定日期的统计数据
+ * Clear attendance cache (call after punching in/out)
+ */
+export function clearAttendanceCache(userId?: string): void {
+    const today = getLocalDateString();
+    const yesterday = getYesterdayDateString();
+    
+    // 清除今天和昨天的缓存，确保日期变化时能正确更新
+    defaultCache.clear(`punch-status:${today}:${userId || 'current'}`);
+    defaultCache.clear(`daily-attendance:${today}:${userId || 'current'}`);
+    defaultCache.clear(`punch-status:${yesterday}:${userId || 'current'}`);
+    defaultCache.clear(`daily-attendance:${yesterday}:${userId || 'current'}`);
+}
+
+/**
+ * 获取特定日期的统计数据（带缓存）
  * @param date 日期字符串
  * @param userId 可选的用户ID,如果提供则只获取该用户的数据
  */
 export async function getDailyStats(date: string, userId?: string): Promise<DailyStats> {
+    const cacheKey = `daily-attendance:${date}:${userId || 'current'}`;
+
+    // Try to get from cache first
+    const cached = defaultCache.get<DailyStats>(cacheKey);
+    if (cached) {
+        return cached;
+    }
+
     let query = supabase
         .from('attendance_records')
         .select('*')
@@ -473,10 +552,17 @@ export async function getDailyStats(date: string, userId?: string): Promise<Dail
     const standardHours = 8;
     const overtimeHours = Math.max(0, totalHours - standardHours);
 
-    return {
+    const stats = {
         totalHours,
         overtimeHours,
     };
+
+    // Cache the result (longer TTL for past dates)
+    const today = getLocalDateString();
+    const ttl = date === today ? ATTENDANCE_CACHE_TTL : 10 * 60 * 1000; // 10 minutes for past dates
+    defaultCache.set(cacheKey, stats, ttl);
+
+    return stats;
 }
 
 /**

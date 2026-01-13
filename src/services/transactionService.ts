@@ -1,5 +1,9 @@
 import { supabase } from '../lib/supabase';
 import { Transaction } from '../../types';
+import { defaultCache } from '../utils/cacheManager';
+
+// Cache TTL for transactions (1 minute)
+const TRANSACTIONS_CACHE_TTL = 1 * 60 * 1000;
 
 // 数据库中的交易记录类型
 interface DbTransaction {
@@ -128,12 +132,43 @@ export async function getTransactionsByMonth(year: number, month: number, userId
 }
 
 /**
- * 获取今日交易记录
+ * 获取今日交易记录（带缓存）
  * @param userId 可选的用户ID,如果提供则只获取该用户的交易
  */
 export async function getTodayTransactions(userId?: string): Promise<Transaction[]> {
     const today = new Date().toISOString().split('T')[0];
+    const cacheKey = `transactions:${today}:${userId || 'current'}`;
 
+    // Try to get from cache first
+    const cached = defaultCache.get<Transaction[]>(cacheKey);
+    if (cached) {
+        // Refresh in background
+        defaultCache.refreshInBackground({
+            key: cacheKey,
+            fetcher: async () => {
+                let query = supabase
+                    .from('transactions')
+                    .select('*')
+                    .eq('transaction_date', today);
+                
+                if (userId) {
+                    query = query.eq('user_id', userId);
+                }
+                
+                const { data, error } = await query.order('transaction_time', { ascending: false });
+
+                if (error) {
+                    console.error('获取今日交易记录失败:', error.message);
+                    throw error;
+                }
+
+                return (data || []).map(dbToTransaction);
+            }
+        });
+        return cached;
+    }
+
+    // Fetch fresh data
     let query = supabase
         .from('transactions')
         .select('*')
@@ -150,7 +185,23 @@ export async function getTodayTransactions(userId?: string): Promise<Transaction
         throw error;
     }
 
-    return (data || []).map(dbToTransaction);
+    const transactions = (data || []).map(dbToTransaction);
+    
+    // Cache the result
+    defaultCache.set(cacheKey, transactions, TRANSACTIONS_CACHE_TTL);
+    
+    return transactions;
+}
+
+/**
+ * Clear transaction cache (call after creating/updating/deleting transactions)
+ */
+export function clearTransactionCache(userId?: string): void {
+    const today = new Date().toISOString().split('T')[0];
+    const cacheKey = `transactions:${today}:${userId || 'current'}`;
+    defaultCache.clear(cacheKey);
+    // Also clear daily stats cache
+    defaultCache.clear(`daily-stats:${today}:${userId || 'current'}`);
 }
 
 /**
@@ -198,6 +249,9 @@ export async function createTransaction(transaction: {
         console.error('创建交易记录失败:', error.message);
         throw error;
     }
+
+    // Clear cache after creating transaction
+    clearTransactionCache(userId);
 
     return dbToTransaction(data);
 }
@@ -308,6 +362,9 @@ export async function deleteTransaction(id: string): Promise<void> {
         console.error('删除交易记录失败:', error.message);
         throw error;
     }
+
+    // Clear cache after deleting transaction
+    clearTransactionCache();
 }
 
 /**
@@ -323,6 +380,9 @@ export async function deleteTransactions(ids: string[]): Promise<void> {
         console.error('批量删除交易记录失败:', error.message);
         throw error;
     }
+
+    // Clear cache after deleting transactions
+    clearTransactionCache();
 }
 
 /**
@@ -352,14 +412,25 @@ export async function updateTransaction(id: string, updates: {
         console.error('更新交易记录失败:', error.message);
         throw error;
     }
+
+    // Clear cache after updating transaction
+    clearTransactionCache();
 }
 
 /**
- * 获取特定日期的财务统计数据
+ * 获取特定日期的财务统计数据（带缓存）
  * @param date 日期字符串
  * @param userId 可选的用户ID,如果提供则只获取该用户的数据
  */
 export async function getDailyStats(date: string, userId?: string): Promise<DailyFinancialStats> {
+    const cacheKey = `daily-stats:${date}:${userId || 'current'}`;
+
+    // Try to get from cache first
+    const cached = defaultCache.get<DailyFinancialStats>(cacheKey);
+    if (cached) {
+        return cached;
+    }
+
     let query = supabase
         .from('transactions')
         .select('amount, transaction_type')
@@ -388,5 +459,12 @@ export async function getDailyStats(date: string, userId?: string): Promise<Dail
         }
     });
 
-    return { income, expense };
+    const stats = { income, expense };
+    
+    // Cache the result (longer TTL for past dates)
+    const today = new Date().toISOString().split('T')[0];
+    const ttl = date === today ? TRANSACTIONS_CACHE_TTL : 10 * 60 * 1000; // 10 minutes for past dates
+    defaultCache.set(cacheKey, stats, ttl);
+
+    return stats;
 }
