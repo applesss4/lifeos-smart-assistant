@@ -138,7 +138,12 @@ export async function punch(type: '上班' | '下班', targetUserId?: string): P
 
     const now = new Date();
     const recordDate = now.toISOString().split('T')[0];
-    const currentTime = now.toTimeString().slice(0, 5);
+    
+    // 使用更可靠的方式获取当前时间（兼容移动端）
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const currentTime = `${hours}:${minutes}`;
+    
     // 自动舍入到最近的整点或半点
     const recordTime = roundTimeToNearestHalfHour(currentTime);
 
