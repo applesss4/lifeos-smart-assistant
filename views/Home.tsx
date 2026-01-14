@@ -27,6 +27,7 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
   const [username, setUsername] = useState<string>('用户');
   const [newUsername, setNewUsername] = useState('');
   const [isSavingUsername, setIsSavingUsername] = useState(false);
+  const [expandedNotifications, setExpandedNotifications] = useState<Set<string>>(new Set());
 
   // 使用通知 Hook
   const {
@@ -520,80 +521,105 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
                 </div>
               ) : (
                 <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {notifications.map((notification) => (
-                    <div
-                      key={notification.id}
-                      className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${
-                        !notification.isRead ? 'bg-primary/5 dark:bg-primary/10' : ''
-                      }`}
-                    >
-                      <div className="flex gap-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                          notification.type === 'daily_report'
-                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-500'
-                            : notification.type === 'monthly_report'
-                            ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-500'
-                            : 'bg-gray-50 dark:bg-gray-800 text-gray-500'
-                        }`}>
-                          <span className="material-symbols-outlined text-lg">
-                            {notification.type === 'daily_report' ? 'description' : notification.type === 'monthly_report' ? 'summarize' : 'mail'}
-                          </span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2 mb-1">
-                            <h4 className="font-bold text-sm dark:text-white truncate">{notification.title}</h4>
-                            {!notification.isRead && (
-                              <span className="w-2 h-2 bg-primary rounded-full flex-shrink-0 mt-1"></span>
-                            )}
+                  {notifications.map((notification) => {
+                    const isExpanded = expandedNotifications.has(notification.id);
+                    const isLongContent = notification.content.length > 150;
+                    
+                    return (
+                      <div
+                        key={notification.id}
+                        className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${
+                          !notification.isRead ? 'bg-primary/5 dark:bg-primary/10' : ''
+                        }`}
+                      >
+                        <div className="flex gap-3">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                            notification.type === 'daily_report'
+                              ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-500'
+                              : notification.type === 'monthly_report'
+                              ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-500'
+                              : 'bg-gray-50 dark:bg-gray-800 text-gray-500'
+                          }`}>
+                            <span className="material-symbols-outlined text-lg">
+                              {notification.type === 'daily_report' ? 'description' : notification.type === 'monthly_report' ? 'summarize' : 'mail'}
+                            </span>
                           </div>
-                          <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed mb-2 line-clamp-3">
-                            {notification.content}
-                          </p>
-                          <div className="flex items-center justify-between">
-                            <p className="text-[10px] text-gray-400">
-                              {new Date(notification.createdAt).toLocaleString('zh-CN', {
-                                month: 'numeric',
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </p>
-                            <div className="flex gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2 mb-1">
+                              <h4 className="font-bold text-sm dark:text-white truncate">{notification.title}</h4>
                               {!notification.isRead && (
+                                <span className="w-2 h-2 bg-primary rounded-full flex-shrink-0 mt-1"></span>
+                              )}
+                            </div>
+                            <div className="mb-2">
+                              <p className={`text-xs text-gray-600 dark:text-gray-400 leading-relaxed whitespace-pre-wrap ${
+                                !isExpanded && isLongContent ? 'line-clamp-3' : ''
+                              }`}>
+                                {notification.content}
+                              </p>
+                              {isLongContent && (
                                 <button
-                                  onClick={async () => {
-                                    try {
-                                      await markAsRead(notification.id);
-                                    } catch (error) {
-                                      onNotify('操作失败');
+                                  onClick={() => {
+                                    const newExpanded = new Set(expandedNotifications);
+                                    if (isExpanded) {
+                                      newExpanded.delete(notification.id);
+                                    } else {
+                                      newExpanded.add(notification.id);
                                     }
+                                    setExpandedNotifications(newExpanded);
                                   }}
-                                  className="text-[10px] font-bold text-primary hover:text-primary/80 transition-colors"
+                                  className="text-[10px] font-bold text-primary hover:text-primary/80 transition-colors mt-1"
                                 >
-                                  标记已读
+                                  {isExpanded ? '收起' : '展开全文'}
                                 </button>
                               )}
-                              <button
-                                onClick={async () => {
-                                  if (confirm('确定要删除这条消息吗？')) {
-                                    try {
-                                      await deleteNotification(notification.id);
-                                      onNotify('消息已删除');
-                                    } catch (error) {
-                                      onNotify('删除失败');
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <p className="text-[10px] text-gray-400">
+                                {new Date(notification.createdAt).toLocaleString('zh-CN', {
+                                  month: 'numeric',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </p>
+                              <div className="flex gap-2">
+                                {!notification.isRead && (
+                                  <button
+                                    onClick={async () => {
+                                      try {
+                                        await markAsRead(notification.id);
+                                      } catch (error) {
+                                        onNotify('操作失败');
+                                      }
+                                    }}
+                                    className="text-[10px] font-bold text-primary hover:text-primary/80 transition-colors"
+                                  >
+                                    标记已读
+                                  </button>
+                                )}
+                                <button
+                                  onClick={async () => {
+                                    if (confirm('确定要删除这条消息吗？')) {
+                                      try {
+                                        await deleteNotification(notification.id);
+                                        onNotify('消息已删除');
+                                      } catch (error) {
+                                        onNotify('删除失败');
+                                      }
                                     }
-                                  }
-                                }}
-                                className="text-[10px] font-bold text-red-500 hover:text-red-600 transition-colors"
-                              >
-                                删除
-                              </button>
+                                  }}
+                                  className="text-[10px] font-bold text-red-500 hover:text-red-600 transition-colors"
+                                >
+                                  删除
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
