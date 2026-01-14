@@ -48,6 +48,22 @@ const LazyTooltip = lazy(() =>
   import('recharts').then(module => ({ default: module.Tooltip }))
 );
 
+const LazyCartesianGrid = lazy(() => 
+  import('recharts').then(module => ({ default: module.CartesianGrid }))
+);
+
+const LazyLegend = lazy(() => 
+  import('recharts').then(module => ({ default: module.Legend }))
+);
+
+const LazyLineChart = lazy(() => 
+  import('recharts').then(module => ({ default: module.LineChart }))
+);
+
+const LazyLine = lazy(() => 
+  import('recharts').then(module => ({ default: module.Line }))
+);
+
 // Loading fallback for charts
 const ChartLoadingFallback: React.FC = () => (
   <div style={{
@@ -123,5 +139,29 @@ export const YAxis: React.FC<any> = (props) => (
 export const Tooltip: React.FC<any> = (props) => (
   <Suspense fallback={null}>
     <LazyTooltip {...props} />
+  </Suspense>
+);
+
+export const CartesianGrid: React.FC<any> = (props) => (
+  <Suspense fallback={null}>
+    <LazyCartesianGrid {...props} />
+  </Suspense>
+);
+
+export const Legend: React.FC<any> = (props) => (
+  <Suspense fallback={null}>
+    <LazyLegend {...props} />
+  </Suspense>
+);
+
+export const LineChart: React.FC<any> = (props) => (
+  <Suspense fallback={<ChartLoadingFallback />}>
+    <LazyLineChart {...props} />
+  </Suspense>
+);
+
+export const Line: React.FC<any> = (props) => (
+  <Suspense fallback={null}>
+    <LazyLine {...props} />
   </Suspense>
 );

@@ -59,12 +59,15 @@ const SalaryView: React.FC<SalaryViewProps> = ({ selectedUserId }) => {
                 // 使用加载的设置进行计算（如果settings刚加载，state可能还没更新，所以直接用settings变量）
                 const currentHourlyRate = settings ? settings.hourly_rate : hourlyRate;
                 const currentOvertimeRate = settings ? settings.overtime_rate : overtimeRate;
-                const currentTransportFee = settings ? settings.transport_fee : transportFee;
+                const currentTransportFeePerDay = settings ? settings.transport_fee : transportFee;
                 const currentBonus = settings ? settings.bonus : bonus;
                 const currentDiff = settings ? (settings.xiaowang_diff || 0) : xiaowangDiff;
                 const currentPension = settings ? (settings.xiaowang_pension || 0) : xiaowangPension;
 
-                const grossSalary = (normalHours * currentHourlyRate) + (overtimeHours * currentOvertimeRate) + currentTransportFee + currentBonus;
+                // 交通补贴按工作日天数计算（只有工作日有补贴）
+                const totalTransportFee = currentTransportFeePerDay * attStats.attendanceDays;
+
+                const grossSalary = (normalHours * currentHourlyRate) + (overtimeHours * currentOvertimeRate) + totalTransportFee + currentBonus;
                 const deductions = currentDiff + currentPension;
                 const estimatedSalary = grossSalary - deductions;
 
@@ -87,11 +90,13 @@ const SalaryView: React.FC<SalaryViewProps> = ({ selectedUserId }) => {
     useEffect(() => {
         const normalHours = stats.normalHours;
         const overtimeHours = stats.overtimeHours;
-        const grossSalary = (normalHours * hourlyRate) + (overtimeHours * overtimeRate) + transportFee + bonus;
+        // 交通补贴按工作日天数计算
+        const totalTransportFee = transportFee * stats.attendanceDays;
+        const grossSalary = (normalHours * hourlyRate) + (overtimeHours * overtimeRate) + totalTransportFee + bonus;
         const deductions = xiaowangDiff + xiaowangPension;
         const estimatedSalary = grossSalary - deductions;
         setStats(prev => ({ ...prev, estimatedSalary }));
-    }, [hourlyRate, overtimeRate, transportFee, bonus, xiaowangDiff, xiaowangPension, stats.normalHours, stats.overtimeHours]);
+    }, [hourlyRate, overtimeRate, transportFee, bonus, xiaowangDiff, xiaowangPension, stats.normalHours, stats.overtimeHours, stats.attendanceDays]);
 
     const handleSaveSettings = async () => {
         try {
@@ -152,8 +157,8 @@ const SalaryView: React.FC<SalaryViewProps> = ({ selectedUserId }) => {
                             <span className="dark:text-gray-300">{(stats.overtimeHours * overtimeRate).toLocaleString()} 円</span>
                         </div>
                         <div className="flex justify-between text-sm font-bold">
-                            <span className="text-gray-400">交通补贴</span>
-                            <span className="dark:text-gray-300">{transportFee.toLocaleString()} 円</span>
+                            <span className="text-gray-400">交通补贴 ({stats.attendanceDays} 天)</span>
+                            <span className="dark:text-gray-300">{(transportFee * stats.attendanceDays).toLocaleString()} 円</span>
                         </div>
                         <div className="flex justify-between text-sm font-bold">
                             <span className="text-gray-400">奖金</span>
@@ -220,8 +225,9 @@ const SalaryView: React.FC<SalaryViewProps> = ({ selectedUserId }) => {
                                         <input type="number" value={overtimeRate} onChange={e => setOvertimeRate(Number(e.target.value))} className="w-full bg-gray-50 dark:bg-gray-800 border-none font-bold text-orange-500 focus:ring-2 focus:ring-orange-500/20 rounded-xl h-10 px-4" />
                                     </div>
                                     <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">交通补贴 (¥)</label>
+                                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">每日交通补贴 (¥)</label>
                                         <input type="number" value={transportFee} onChange={e => setTransportFee(Number(e.target.value))} className="w-full bg-gray-50 dark:bg-gray-800 border-none font-bold text-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-xl h-10 px-4" />
+                                        <p className="text-[9px] text-gray-400 mt-1">按工作日天数计算，休息日无补贴</p>
                                     </div>
                                     <div className="space-y-1">
                                         <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">本月奖金 (¥)</label>
@@ -256,7 +262,8 @@ const SalaryView: React.FC<SalaryViewProps> = ({ selectedUserId }) => {
                                         <p>2. 加班工时 = Math.max(0, 总工时 - 正常工时)</p>
                                         <p>3. 基本工资 = 正常工时 * 正常时薪</p>
                                         <p>4. 加班工资 = 加班工时 * 加班时薪</p>
-                                        <p>5. 扣除项 = 小王差额 + 厚生年金</p>
+                                        <p>5. 交通补贴 = 每日补贴 * 出勤天数</p>
+                                        <p>6. 扣除项 = 小王差额 + 厚生年金</p>
                                         <p className="mt-2 text-gray-900 dark:text-white font-bold">最终实发 = 基本 + 加班 + 补贴 + 奖金 - 扣除</p>
                                     </div>
                                 </div>

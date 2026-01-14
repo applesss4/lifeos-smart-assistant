@@ -104,6 +104,14 @@ const Tasks: React.FC<TasksProps> = ({ onNotify }) => {
     };
   }, [tasks]);
 
+  // 使用 useMemo 缓存时间线任务计算（必须在顶层调用）
+  const timelineTasks = useMemo(() => 
+    [...tasks]
+      .filter(t => t.date === '今日')
+      .sort((a, b) => a.time.localeCompare(b.time)),
+    [tasks]
+  );
+
   const renderListView = () => (
     <div className="space-y-8">
       {sections.map(sec => {
@@ -162,13 +170,6 @@ const Tasks: React.FC<TasksProps> = ({ onNotify }) => {
   );
 
   const renderTimelineView = () => {
-    const timelineTasks = useMemo(() => 
-      [...tasks]
-        .filter(t => t.date === '今日')
-        .sort((a, b) => a.time.localeCompare(b.time)),
-      [tasks]
-    );
-
     return (
       <div className="space-y-6 pl-4 relative py-4">
         <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-gray-200 dark:bg-gray-800"></div>

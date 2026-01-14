@@ -8,6 +8,7 @@ import * as profileService from '../src/services/profileService';
 import * as dashboardService from '../src/services/dashboardService';
 import HomeSkeleton from '../src/components/HomeSkeleton';
 import { useAuth } from '../src/contexts/AuthContext';
+import { useNotifications } from '../src/hooks/useNotifications';
 
 interface HomeProps {
   onNavigate: (view: ViewType) => void;
@@ -20,13 +21,22 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
   const [todayExpenses, setTodayExpenses] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
-  const [showDailyReport, setShowDailyReport] = useState(false);
-  const [isSavingReport, setIsSavingReport] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showUsernameModal, setShowUsernameModal] = useState(false);
   const [username, setUsername] = useState<string>('用户');
   const [newUsername, setNewUsername] = useState('');
   const [isSavingUsername, setIsSavingUsername] = useState(false);
+
+  // 使用通知 Hook
+  const {
+    notifications,
+    unreadCount,
+    isLoading: notificationsLoading,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+  } = useNotifications();
 
   // 统计数据状态
   const [yesterdayStats, setYesterdayStats] = useState({
@@ -301,11 +311,15 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
           </div>
         </div>
         <button
-          onClick={() => setShowDailyReport(true)}
+          onClick={() => setShowNotifications(true)}
           className="relative flex items-center justify-center p-2 rounded-full text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
         >
           <span className="material-symbols-outlined">notifications</span>
-          <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 border-2 border-background-light dark:border-background-dark rounded-full"></span>
+          {unreadCount > 0 && (
+            <span className="absolute top-1 right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
         </button>
       </div>
 
@@ -349,6 +363,12 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
                   <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{yesterdayStats.hours}h</span>
                 </div>
               </div>
+            </div>
+            <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl mb-4">
+              <p className="text-[9px] font-bold text-gray-400 uppercase mb-2">今日工作总结</p>
+              <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
+                {dailySummary.narrative}
+              </p>
             </div>
             <button
               onClick={() => onNavigate(ViewType.ATTENDANCE)}
@@ -454,148 +474,128 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
         </div>
       </div>
 
-      {/* Daily Report Modal */}
-      {showDailyReport && (
+      {/* Notifications Modal */}
+      {showNotifications && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="w-full max-w-sm bg-white dark:bg-[#1c2127] rounded-[32px] shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800 animate-in zoom-in-95 duration-200 no-scrollbar max-h-[90vh] overflow-y-auto">
-            <div className="p-8 space-y-7">
+          <div className="w-full max-w-sm bg-white dark:bg-[#1c2127] rounded-[32px] shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800 animate-in zoom-in-95 duration-200 max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-gray-100 dark:border-gray-800">
               <div className="flex justify-between items-start">
                 <div>
-                  <h3 className="text-2xl font-black dark:text-white tracking-tight">今日日报总结</h3>
+                  <h3 className="text-2xl font-black dark:text-white tracking-tight">消息通知</h3>
                   <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">
-                    {new Date().toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }).replace('/', '月') + '日'} • 系统深度分析
+                    {unreadCount > 0 ? `${unreadCount} 条未读消息` : '暂无未读消息'}
                   </p>
                 </div>
                 <button
-                  onClick={() => setShowDailyReport(false)}
+                  onClick={() => setShowNotifications(false)}
                   className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-500 hover:text-gray-700 transition-colors"
                 >
                   <span className="material-symbols-outlined">close</span>
                 </button>
               </div>
+              {unreadCount > 0 && (
+                <button
+                  onClick={async () => {
+                    try {
+                      await markAllAsRead();
+                      onNotify('已标记所有消息为已读');
+                    } catch (error) {
+                      onNotify('操作失败，请稍后重试');
+                    }
+                  }}
+                  className="mt-3 text-xs font-bold text-primary hover:text-primary/80 transition-colors"
+                >
+                  全部标记为已读
+                </button>
+              )}
+            </div>
 
-              {/* Narrated Detailed Summary Section */}
-              <div className="bg-primary/10 dark:bg-primary/5 border-l-4 border-primary p-5 rounded-r-2xl">
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="material-symbols-outlined text-primary text-xl">auto_awesome</span>
-                  <span className="text-[10px] font-black uppercase text-primary tracking-widest">智能叙事总结</span>
+            <div className="flex-1 overflow-y-auto no-scrollbar">
+              {notificationsLoading ? (
+                <div className="p-8 text-center text-gray-400 text-sm">加载中...</div>
+              ) : notifications.length === 0 ? (
+                <div className="p-12 text-center">
+                  <span className="material-symbols-outlined text-gray-300 dark:text-gray-700 text-5xl mb-3">notifications_off</span>
+                  <p className="text-gray-400 text-sm">暂无消息</p>
                 </div>
-                <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed font-medium">
-                  {dailySummary.narrative}
-                </p>
-              </div>
-
-              {/* Detailed Progress & Work */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary text-xl">insights</span>
-                    <h4 className="font-bold text-sm dark:text-white">工作与进度</h4>
-                  </div>
-                  <span className="text-[10px] bg-emerald-500/10 text-emerald-500 px-2 py-0.5 rounded-full font-bold">
-                    完成率 {homeTasks.length > 0 ? Math.round((dailySummary.completedTasks.length / homeTasks.length) * 100) : 0}%
-                  </span>
-                </div>
-                <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-2xl grid grid-cols-2 gap-3 text-center">
-                  <div className="border-r border-gray-200 dark:border-gray-700">
-                    <p className="text-[9px] text-gray-400 font-bold uppercase mb-1 tracking-tight">投入工时</p>
-                    <p className="text-xl font-black dark:text-white">{dailySummary.totalHours} <span className="text-[10px] font-normal opacity-60">h</span></p>
-                  </div>
-                  <div>
-                    <p className="text-[9px] text-gray-400 font-bold uppercase mb-1 tracking-tight">预计营收</p>
-                    <p className="text-xl font-black text-emerald-500">¥{dailySummary.totalEarned.toFixed(0)}</p>
-                  </div>
-                </div>
-                {/* Specific task summary items */}
-                <div className="space-y-2">
-                  {dailySummary.completedTasks.length > 0 && (
-                    <div className="flex items-center gap-2 px-1">
-                      <span className="material-symbols-outlined text-[14px] text-emerald-500">check_circle</span>
-                      <span className="text-[10px] text-gray-500 dark:text-gray-400">已完成: {dailySummary.completedTasks.map(t => t.title).join(', ')}</span>
-                    </div>
-                  )}
-                  {dailySummary.pendingTasks.length > 0 && (
-                    <div className="flex items-center gap-2 px-1">
-                      <span className="material-symbols-outlined text-[14px] text-orange-400">hourglass_top</span>
-                      <span className="text-[10px] text-gray-500 dark:text-gray-400">待办: {dailySummary.pendingTasks.map(t => t.title).join(', ')}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* NEW: Detailed Expense Summary Section */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary text-xl">payments</span>
-                    <h4 className="font-bold text-sm dark:text-white">今日财务摘要</h4>
-                  </div>
-                  <span className="text-[10px] text-gray-400 font-bold">{todayExpenses.length} 笔交易</span>
-                </div>
-                <div className="bg-gray-50 dark:bg-gray-800/50 p-5 rounded-2xl">
-                  <div className="flex justify-between items-center mb-4">
-                    <div>
-                      <p className="text-[9px] text-gray-400 font-bold uppercase mb-1">单日消费总额</p>
-                      <p className="text-2xl font-black text-orange-500">¥{dailySummary.totalSpent.toFixed(2)}</p>
-                    </div>
-                    {dailySummary.biggestExpense && (
-                      <div className="text-right">
-                        <p className="text-[9px] text-gray-400 font-bold uppercase mb-1">最大笔花销</p>
-                        <p className="text-xs font-bold dark:text-white">¥{Math.abs(dailySummary.biggestExpense.amount).toFixed(2)}</p>
-                      </div>
-                    )}
-                  </div>
-                  {/* Category Breakdown list in modal */}
-                  {todayExpenses.length > 0 && (
-                    <div className="grid grid-cols-2 gap-2 mt-2 border-t border-gray-100 dark:border-gray-700 pt-3">
-                      {Array.from(new Set(todayExpenses.map(e => e.category))).map(cat => {
-                        const catTotal = todayExpenses.filter(e => e.category === cat).reduce((sum, e) => sum + Math.abs(e.amount), 0);
-                        return (
-                          <div key={cat} className="flex items-center justify-between bg-white dark:bg-gray-800 px-2 py-1.5 rounded-lg shadow-sm">
-                            <span className="text-[10px] font-bold dark:text-gray-400">{cat}</span>
-                            <span className="text-[10px] font-black text-gray-700 dark:text-gray-200">¥{catTotal.toFixed(1)}</span>
+              ) : (
+                <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {notifications.map((notification) => (
+                    <div
+                      key={notification.id}
+                      className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${
+                        !notification.isRead ? 'bg-primary/5 dark:bg-primary/10' : ''
+                      }`}
+                    >
+                      <div className="flex gap-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                          notification.type === 'daily_report'
+                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-500'
+                            : notification.type === 'monthly_report'
+                            ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-500'
+                            : 'bg-gray-50 dark:bg-gray-800 text-gray-500'
+                        }`}>
+                          <span className="material-symbols-outlined text-lg">
+                            {notification.type === 'daily_report' ? 'description' : notification.type === 'monthly_report' ? 'summarize' : 'mail'}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <h4 className="font-bold text-sm dark:text-white truncate">{notification.title}</h4>
+                            {!notification.isRead && (
+                              <span className="w-2 h-2 bg-primary rounded-full flex-shrink-0 mt-1"></span>
+                            )}
                           </div>
-                        );
-                      })}
+                          <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed mb-2 line-clamp-3">
+                            {notification.content}
+                          </p>
+                          <div className="flex items-center justify-between">
+                            <p className="text-[10px] text-gray-400">
+                              {new Date(notification.createdAt).toLocaleString('zh-CN', {
+                                month: 'numeric',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </p>
+                            <div className="flex gap-2">
+                              {!notification.isRead && (
+                                <button
+                                  onClick={async () => {
+                                    try {
+                                      await markAsRead(notification.id);
+                                    } catch (error) {
+                                      onNotify('操作失败');
+                                    }
+                                  }}
+                                  className="text-[10px] font-bold text-primary hover:text-primary/80 transition-colors"
+                                >
+                                  标记已读
+                                </button>
+                              )}
+                              <button
+                                onClick={async () => {
+                                  if (confirm('确定要删除这条消息吗？')) {
+                                    try {
+                                      await deleteNotification(notification.id);
+                                      onNotify('消息已删除');
+                                    } catch (error) {
+                                      onNotify('删除失败');
+                                    }
+                                  }
+                                }}
+                                className="text-[10px] font-bold text-red-500 hover:text-red-600 transition-colors"
+                              >
+                                删除
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  )}
+                  ))}
                 </div>
-              </div>
-
-              <button
-                onClick={async () => {
-                  if (isSavingReport) return;
-                  setIsSavingReport(true);
-                  try {
-                    await dailyReportService.saveDailyReport({
-                      reportDate: new Date().toISOString().split('T')[0],
-                      totalHours: dailySummary.totalHours,
-                      overtimeHours: dailySummary.overtimeHours,
-                      totalEarned: dailySummary.totalEarned,
-                      completedTasksCount: dailySummary.completedTasks.length,
-                      pendingTasksCount: dailySummary.pendingTasks.length,
-                      completedTasksTitles: dailySummary.completedTasks.map(t => t.title),
-                      pendingTasksTitles: dailySummary.pendingTasks.map(t => t.title),
-                      totalSpent: dailySummary.totalSpent,
-                      expenseCount: todayExpenses.length,
-                      biggestExpenseName: dailySummary.biggestExpense?.name,
-                      biggestExpenseAmount: dailySummary.biggestExpense ? Math.abs(dailySummary.biggestExpense.amount) : undefined,
-                      narrative: dailySummary.narrative,
-                    });
-                    onNotify('日报已成功存入档案！');
-                    setShowDailyReport(false);
-                  } catch (error) {
-                    console.error('保存日报失败:', error);
-                    onNotify('保存日报失败，请稍后重试');
-                  } finally {
-                    setIsSavingReport(false);
-                  }
-                }}
-                disabled={isSavingReport}
-                className={`w-full py-4 bg-primary text-white rounded-2xl font-bold shadow-lg shadow-primary/20 active:scale-95 transition-transform ${isSavingReport ? 'opacity-70' : ''}`}
-              >
-                {isSavingReport ? '保存中...' : '确认并存入档案'}
-              </button>
+              )}
             </div>
           </div>
         </div>

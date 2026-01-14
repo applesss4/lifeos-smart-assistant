@@ -15,7 +15,7 @@ const AttendanceView = createLazyComponent(() => import('./views/AttendanceView'
 const FinanceView = createLazyComponent(() => import('./views/FinanceView'), '加载收支管理...', <AdminSkeleton />);
 const ReportsView = createLazyComponent(() => import('./views/ReportsView'), '加载日报管理...', <AdminSkeleton />);
 const TasksView = createLazyComponent(() => import('./views/TasksView'), '加载待办统计...', <AdminSkeleton />);
-const MonthlyStatsView = createLazyComponent(() => import('./views/MonthlyStatsView'), '加载月末统计...', <AdminSkeleton />);
+const MonthlyReportView = createLazyComponent(() => import('./views/MonthlyReportView'), '加载月度报告...', <AdminSkeleton />);
 
 enum AdminView {
     SALARY = 'salary',
@@ -134,7 +134,7 @@ const App: React.FC = () => {
         { id: AdminView.FINANCE, label: '收支管理', icon: 'account_balance_wallet' },
         { id: AdminView.REPORTS, label: '日报管理', icon: 'history_edu' },
         { id: AdminView.TASKS, label: '待办统计', icon: 'checklist' },
-        { id: AdminView.MONTHLY_STATS, label: '月末统计', icon: 'analytics' },
+        { id: AdminView.MONTHLY_STATS, label: '月度报告', icon: 'analytics' },
     ];
 
     const handleLogout = async () => {
@@ -156,7 +156,7 @@ const App: React.FC = () => {
             case AdminView.FINANCE: return <FinanceView selectedUserId={userId} />;
             case AdminView.REPORTS: return <ReportsView selectedUserId={userId} />;
             case AdminView.TASKS: return <TasksView selectedUserId={userId} />;
-            case AdminView.MONTHLY_STATS: return <MonthlyStatsView selectedUserId={userId} />;
+            case AdminView.MONTHLY_STATS: return <MonthlyReportView selectedUserId={userId} />;
             default: return <SalaryView selectedUserId={userId} />;
         }
     };

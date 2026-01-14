@@ -1,8 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
 import * as dailyReportService from '../../../src/services/dailyReportService';
+import * as notificationService from '../../../src/services/notificationService';
 import { DailyReport } from '../../../src/services/dailyReportService';
 import AdminSkeleton from '../components/AdminSkeleton';
+import UserSelector from '../components/UserSelector';
 
 interface ReportsViewProps {
     selectedUserId?: string;
@@ -11,11 +13,14 @@ interface ReportsViewProps {
 const ReportsView: React.FC<ReportsViewProps> = ({ selectedUserId }) => {
     const [reports, setReports] = useState<DailyReport[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [showUserSelector, setShowUserSelector] = useState(false);
+    const [selectedReport, setSelectedReport] = useState<DailyReport | null>(null);
 
     const fetchData = async () => {
         try {
             setIsLoading(true);
-            const data = await dailyReportService.getDailyReports();
+            // 传入 selectedUserId 实现数据隔离
+            const data = await dailyReportService.getDailyReports(30, 0, selectedUserId);
             setReports(data);
         } finally {
             setIsLoading(false);
@@ -24,7 +29,7 @@ const ReportsView: React.FC<ReportsViewProps> = ({ selectedUserId }) => {
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [selectedUserId]); // 添加 selectedUserId 作为依赖，切换用户时重新加载
 
     const handleDelete = async (id?: string) => {
         if (!id) return;
@@ -35,6 +40,31 @@ const ReportsView: React.FC<ReportsViewProps> = ({ selectedUserId }) => {
         } catch (error) {
             console.error('删除日报失败:', error);
             alert('删除失败');
+        }
+    };
+
+    const handleShare = (report: DailyReport) => {
+        setSelectedReport(report);
+        setShowUserSelector(true);
+    };
+
+    const handleSendToUser = async (userId: string) => {
+        if (!selectedReport) return;
+
+        try {
+            await notificationService.createNotification(
+                userId,
+                `日报总结 - ${selectedReport.reportDate}`,
+                selectedReport.narrative,
+                'daily_report',
+                selectedReport.id
+            );
+            alert('日报已发送给用户');
+            setShowUserSelector(false);
+            setSelectedReport(null);
+        } catch (error) {
+            console.error('发送日报失败:', error);
+            alert('发送失败，请稍后重试');
         }
     };
 
@@ -57,12 +87,21 @@ const ReportsView: React.FC<ReportsViewProps> = ({ selectedUserId }) => {
                                 <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">{report.reportDate}</p>
                                 <h3 className="font-bold text-lg dark:text-white">日报总结存档</h3>
                             </div>
-                            <button
-                                onClick={() => handleDelete(report.id)}
-                                className="text-gray-400 hover:text-red-500 transition-colors"
-                            >
-                                <span className="material-symbols-outlined">delete</span>
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => handleShare(report)}
+                                    className="text-gray-400 hover:text-primary transition-colors"
+                                    title="分享给用户"
+                                >
+                                    <span className="material-symbols-outlined">share</span>
+                                </button>
+                                <button
+                                    onClick={() => handleDelete(report.id)}
+                                    className="text-gray-400 hover:text-red-500 transition-colors"
+                                >
+                                    <span className="material-symbols-outlined">delete</span>
+                                </button>
+                            </div>
                         </div>
 
                         <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed italic border-l-4 border-primary/20 pl-4 py-1">
@@ -88,6 +127,17 @@ const ReportsView: React.FC<ReportsViewProps> = ({ selectedUserId }) => {
                 {isLoading && <div className="col-span-2 text-center py-12 text-gray-400">加载中...</div>}
                 {!isLoading && reports.length === 0 && <div className="col-span-2 text-center py-12 text-gray-400">暂无存档</div>}
             </div>
+
+            {/* User Selector Modal */}
+            {showUserSelector && (
+                <UserSelector
+                    onSelect={handleSendToUser}
+                    onCancel={() => {
+                        setShowUserSelector(false);
+                        setSelectedReport(null);
+                    }}
+                />
+            )}
         </div>
     );
 };
