@@ -24,6 +24,8 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showUsernameModal, setShowUsernameModal] = useState(false);
+  const [showDailyReport, setShowDailyReport] = useState(false);
+  const [isSavingReport, setIsSavingReport] = useState(false);
   const [username, setUsername] = useState<string>('用户');
   const [newUsername, setNewUsername] = useState('');
   const [isSavingUsername, setIsSavingUsername] = useState(false);
@@ -246,6 +248,39 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
     return { totalHours, overtimeHours, totalEarned, totalSpent, completedTasks, pendingTasks, narrative, biggestExpense };
   }, [todayStats, todayExpenses, homeTasks]);
 
+  // 保存日报的处理函数（必须在 dailySummary 之后定义）
+  const handleSaveDailyReport = useCallback(async () => {
+    try {
+      setIsSavingReport(true);
+      
+      // 构建日报数据
+      const reportData: Omit<dailyReportService.DailyReport, 'id' | 'createdAt'> = {
+        reportDate: new Date().toISOString().split('T')[0],
+        totalHours: dailySummary.totalHours,
+        overtimeHours: dailySummary.overtimeHours,
+        totalEarned: dailySummary.totalEarned,
+        completedTasksCount: dailySummary.completedTasks.length,
+        pendingTasksCount: dailySummary.pendingTasks.length,
+        completedTasksTitles: dailySummary.completedTasks.map(t => t.title),
+        pendingTasksTitles: dailySummary.pendingTasks.map(t => t.title),
+        totalSpent: dailySummary.totalSpent,
+        expenseCount: todayExpenses.length,
+        biggestExpenseName: dailySummary.biggestExpense?.name,
+        biggestExpenseAmount: dailySummary.biggestExpense ? Math.abs(dailySummary.biggestExpense.amount) : undefined,
+        narrative: dailySummary.narrative,
+      };
+      
+      await dailyReportService.saveDailyReport(reportData);
+      onNotify('今日日报已保存');
+      setShowDailyReport(false);
+    } catch (error) {
+      console.error('保存日报失败:', error);
+      onNotify('保存日报失败，请稍后重试');
+    } finally {
+      setIsSavingReport(false);
+    }
+  }, [dailySummary, todayExpenses, onNotify]);
+
   // 获取当前时间信息
   const timeInfo = useMemo(() => {
     const now = new Date();
@@ -365,19 +400,22 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
                 </div>
               </div>
             </div>
-            <div className="bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl mb-4">
-              <p className="text-[9px] font-bold text-gray-400 uppercase mb-2">今日工作总结</p>
-              <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">
-                {dailySummary.narrative}
-              </p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => setShowDailyReport(true)}
+                className="flex items-center justify-center gap-2 rounded-lg h-12 bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold shadow-md shadow-blue-500/20 transition-all active:scale-[0.98]"
+              >
+                <span className="material-symbols-outlined text-lg">description</span>
+                <span>今日日报</span>
+              </button>
+              <button
+                onClick={() => onNavigate(ViewType.ATTENDANCE)}
+                className="flex items-center justify-center gap-2 rounded-lg h-12 bg-primary hover:bg-primary/90 text-white text-sm font-bold shadow-md shadow-primary/20 transition-all active:scale-[0.98]"
+              >
+                <span className="material-symbols-outlined text-lg">fingerprint</span>
+                <span>打卡</span>
+              </button>
             </div>
-            <button
-              onClick={() => onNavigate(ViewType.ATTENDANCE)}
-              className="w-full flex items-center justify-center gap-2 rounded-lg h-12 bg-primary hover:bg-primary/90 text-white text-base font-bold shadow-md shadow-primary/20 transition-all active:scale-[0.98]"
-            >
-              <span className="material-symbols-outlined">fingerprint</span>
-              <span>打卡</span>
-            </button>
           </div>
         </div>
       </div>
@@ -751,6 +789,108 @@ const Home: React.FC<HomeProps> = ({ onNavigate, onNotify }) => {
                 className={`flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20 ${isSavingUsername || !newUsername.trim() ? 'opacity-70' : ''}`}
               >
                 {isSavingUsername ? '保存中...' : '保存'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Daily Report Modal */}
+      {showDailyReport && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="w-full max-w-md bg-white dark:bg-[#1c2127] rounded-[32px] shadow-2xl overflow-hidden border border-gray-100 dark:border-gray-800 max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-gray-100 dark:border-gray-800">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="text-2xl font-black dark:text-white tracking-tight">今日工作日报</h3>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">
+                    {new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' })}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowDailyReport(false)}
+                  className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {/* 工作时长 */}
+              <div className="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-2xl border border-blue-100 dark:border-blue-800/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="material-symbols-outlined text-blue-500 text-lg">schedule</span>
+                  <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">工作时长</h4>
+                </div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{dailySummary.totalHours} 小时</p>
+                {dailySummary.overtimeHours > 0 && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    包括 {dailySummary.overtimeHours} 小时加班
+                  </p>
+                )}
+              </div>
+
+              {/* 任务完成情况 */}
+              <div className="bg-green-50 dark:bg-green-900/10 p-4 rounded-2xl border border-green-100 dark:border-green-800/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="material-symbols-outlined text-green-500 text-lg">task_alt</span>
+                  <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">任务完成</h4>
+                </div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {dailySummary.completedTasks.length} / {homeTasks.length}
+                </p>
+                {dailySummary.completedTasks.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {dailySummary.completedTasks.slice(0, 3).map(task => (
+                      <p key={task.id} className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[14px] text-green-500">check_circle</span>
+                        {task.title}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 财务支出 */}
+              <div className="bg-orange-50 dark:bg-orange-900/10 p-4 rounded-2xl border border-orange-100 dark:border-orange-800/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="material-symbols-outlined text-orange-500 text-lg">payments</span>
+                  <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">今日支出</h4>
+                </div>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">¥{dailySummary.totalSpent.toFixed(2)}</p>
+                {dailySummary.biggestExpense && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    最大支出：{dailySummary.biggestExpense.name} ¥{Math.abs(dailySummary.biggestExpense.amount).toFixed(2)}
+                  </p>
+                )}
+              </div>
+
+              {/* 工作总结 */}
+              <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-2xl border border-gray-100 dark:border-gray-800">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="material-symbols-outlined text-gray-500 text-lg">description</span>
+                  <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">工作总结</h4>
+                </div>
+                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                  {dailySummary.narrative}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-100 dark:border-gray-800 flex gap-3">
+              <button
+                onClick={() => setShowDailyReport(false)}
+                className="flex-1 py-3 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              >
+                关闭
+              </button>
+              <button
+                onClick={handleSaveDailyReport}
+                disabled={isSavingReport}
+                className={`flex-1 py-3 bg-primary text-white rounded-xl font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all ${isSavingReport ? 'opacity-70' : ''}`}
+              >
+                {isSavingReport ? '保存中...' : '保存日报'}
               </button>
             </div>
           </div>

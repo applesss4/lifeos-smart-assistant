@@ -28,6 +28,10 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
         clockOutTime: '18:00',
         isRestDay: false
     });
+    
+    // 月份选择器状态
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
 
     // 将打卡记录按日期分组
     const groupRecordsByDate = (records: AttendanceRecord[]): DailyAttendance[] => {
@@ -96,8 +100,13 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
     const fetchRecords = async () => {
         try {
             setIsLoading(true);
-            console.log('AttendanceView: 加载用户打卡记录, userId=', selectedUserId);
-            const data = await attendanceService.getAttendanceRecords(30, selectedUserId);
+            console.log('AttendanceView: 加载用户打卡记录, userId=', selectedUserId, 'year=', selectedYear, 'month=', selectedMonth);
+            
+            // 获取指定月份的所有记录
+            const startDate = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
+            const endDate = new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0]; // 月份最后一天
+            
+            const data = await attendanceService.getAttendanceRecordsByDateRange(startDate, endDate, selectedUserId);
             console.log('AttendanceView: 获取到', data.length, '条打卡记录');
             setRecords(data);
             setDailyRecords(groupRecordsByDate(data));
@@ -108,7 +117,7 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
 
     useEffect(() => {
         fetchRecords();
-    }, [selectedUserId]);
+    }, [selectedUserId, selectedYear, selectedMonth]);
 
     useEffect(() => {
         setDailyRecords(groupRecordsByDate(records));
@@ -362,6 +371,83 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
                             </button>
                         </>
                     )}
+                </div>
+            </div>
+
+            {/* 月份选择器 */}
+            <div className="bg-white dark:bg-[#1c2127] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-4">
+                <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-gray-400">calendar_month</span>
+                        <span className="text-sm font-bold text-gray-500 dark:text-gray-400">查看月份</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        {/* 上一月按钮 */}
+                        <button
+                            onClick={() => {
+                                if (selectedMonth === 1) {
+                                    setSelectedYear(selectedYear - 1);
+                                    setSelectedMonth(12);
+                                } else {
+                                    setSelectedMonth(selectedMonth - 1);
+                                }
+                            }}
+                            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                            title="上一月"
+                        >
+                            <span className="material-symbols-outlined text-gray-600 dark:text-gray-400">chevron_left</span>
+                        </button>
+                        
+                        {/* 年份选择 */}
+                        <select
+                            value={selectedYear}
+                            onChange={(e) => setSelectedYear(Number(e.target.value))}
+                            className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg font-bold text-sm dark:text-white focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                        >
+                            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                                <option key={year} value={year}>{year}年</option>
+                            ))}
+                        </select>
+                        
+                        {/* 月份选择 */}
+                        <select
+                            value={selectedMonth}
+                            onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                            className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg font-bold text-sm dark:text-white focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                        >
+                            {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
+                                <option key={month} value={month}>{month}月</option>
+                            ))}
+                        </select>
+                        
+                        {/* 下一月按钮 */}
+                        <button
+                            onClick={() => {
+                                if (selectedMonth === 12) {
+                                    setSelectedYear(selectedYear + 1);
+                                    setSelectedMonth(1);
+                                } else {
+                                    setSelectedMonth(selectedMonth + 1);
+                                }
+                            }}
+                            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                            title="下一月"
+                        >
+                            <span className="material-symbols-outlined text-gray-600 dark:text-gray-400">chevron_right</span>
+                        </button>
+                        
+                        {/* 回到当月按钮 */}
+                        <button
+                            onClick={() => {
+                                const now = new Date();
+                                setSelectedYear(now.getFullYear());
+                                setSelectedMonth(now.getMonth() + 1);
+                            }}
+                            className="ml-2 px-3 py-2 bg-primary/10 text-primary rounded-lg font-bold text-xs hover:bg-primary/20 transition-colors"
+                        >
+                            本月
+                        </button>
+                    </div>
                 </div>
             </div>
 

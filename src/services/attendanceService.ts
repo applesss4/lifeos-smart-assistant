@@ -96,6 +96,35 @@ export async function getAttendanceRecords(days: number = 7, userId?: string): P
 }
 
 /**
+ * 按日期范围获取打卡记录
+ * @param startDate 开始日期 (YYYY-MM-DD)
+ * @param endDate 结束日期 (YYYY-MM-DD)
+ * @param userId 可选的用户ID,如果提供则只获取该用户的记录
+ */
+export async function getAttendanceRecordsByDateRange(startDate: string, endDate: string, userId?: string): Promise<AttendanceRecord[]> {
+    let query = supabase
+        .from('attendance_records')
+        .select('*')
+        .gte('record_date', startDate)
+        .lte('record_date', endDate);
+    
+    if (userId) {
+        query = query.eq('user_id', userId);
+    }
+    
+    const { data, error } = await query
+        .order('record_date', { ascending: false })
+        .order('record_time', { ascending: false });
+
+    if (error) {
+        console.error('按日期范围获取打卡记录失败:', error.message);
+        throw error;
+    }
+
+    return (data || []).map(dbToRecord);
+}
+
+/**
  * 获取最近两天的打卡记录
  * @param userId 可选的用户ID,如果提供则只获取该用户的记录
  */
