@@ -32,11 +32,10 @@ const BottomNav: React.FC<BottomNavProps> = memo(({ activeView, onViewChange }) 
             onClick={() => onViewChange(item.type)}
             onMouseEnter={() => handleMouseEnter(item.type)}
             onTouchStart={() => handleMouseEnter(item.type)}
-            className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-all ${
-              activeView === item.type ? 'text-primary' : 'text-gray-400 dark:text-gray-500'
-            }`}
+            className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-all ${activeView === item.type ? 'text-primary' : 'text-gray-400 dark:text-gray-500'
+              }`}
           >
-            <span 
+            <span
               className={`material-symbols-outlined ${activeView === item.type ? 'filled' : ''}`}
               style={{ fontVariationSettings: activeView === item.type ? "'FILL' 1" : "" }}
             >

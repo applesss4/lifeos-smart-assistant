@@ -28,7 +28,7 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
         clockOutTime: '18:00',
         isRestDay: false
     });
-    
+
     // 月份选择器状态
     const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
@@ -36,13 +36,13 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
     // 将打卡记录按日期分组
     const groupRecordsByDate = (records: AttendanceRecord[]): DailyAttendance[] => {
         const grouped = new Map<string, DailyAttendance>();
-        
+
         records.forEach(record => {
             if (!grouped.has(record.date)) {
                 grouped.set(record.date, { date: record.date, isRestDay: false });
             }
             const daily = grouped.get(record.date)!;
-            
+
             if (record.type === '休息') {
                 daily.isRestDay = true;
                 daily.clockIn = record; // 保存休息记录以便删除
@@ -86,7 +86,7 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
                     if (daily.clockOut) idsToDelete.push(daily.clockOut.id);
                 }
             });
-            
+
             await attendanceService.deleteAttendanceRecords(idsToDelete);
             setRecords(records.filter(r => !idsToDelete.includes(r.id)));
             setSelectedDates(new Set());
@@ -101,11 +101,11 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
         try {
             setIsLoading(true);
             console.log('AttendanceView: 加载用户打卡记录, userId=', selectedUserId, 'year=', selectedYear, 'month=', selectedMonth);
-            
+
             // 获取指定月份的所有记录
             const startDate = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
             const endDate = new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0]; // 月份最后一天
-            
+
             const data = await attendanceService.getAttendanceRecordsByDateRange(startDate, endDate, selectedUserId);
             console.log('AttendanceView: 获取到', data.length, '条打卡记录');
             setRecords(data);
@@ -129,23 +129,23 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
             if (!daily) return;
 
             const record = type === 'clockIn' ? daily.clockIn : daily.clockOut;
-            
+
             if (record) {
                 // 更新现有记录
-                await attendanceService.updateAttendanceRecord(record.id, { 
-                    date, 
-                    time: newTime, 
-                    type: type === 'clockIn' ? '上班' : '下班' 
+                await attendanceService.updateAttendanceRecord(record.id, {
+                    date,
+                    time: newTime,
+                    type: type === 'clockIn' ? '上班' : '下班'
                 });
-                setRecords(records.map(r => 
+                setRecords(records.map(r =>
                     r.id === record.id ? { ...r, time: newTime } : r
                 ));
             } else {
                 // 创建新记录
                 await attendanceService.addManualRecord(
-                    date, 
-                    newTime, 
-                    type === 'clockIn' ? '上班' : '下班', 
+                    date,
+                    newTime,
+                    type === 'clockIn' ? '上班' : '下班',
                     selectedUserId
                 );
                 await fetchRecords();
@@ -201,6 +201,49 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
             console.error('添加失败:', error);
             alert('添加失败，请重试');
         }
+    };
+
+    const handleExportCSV = () => {
+        if (dailyRecords.length === 0) {
+            alert('暂无数据可导出');
+            return;
+        }
+
+        const headers = ['日期', '上班时间', '下班时间', '工时(小时)', '状态'];
+        const csvContent = [
+            headers.join(','),
+            ...dailyRecords.map(daily => {
+                const clockIn = daily.clockIn?.time || '';
+                const clockOut = daily.clockOut?.time || '';
+                const workHours = !daily.isRestDay && daily.clockIn && daily.clockOut
+                    ? calculateWorkHours(daily.clockIn.time, daily.clockOut.time).toFixed(1)
+                    : '';
+
+                let status = '不完整';
+                if (daily.isRestDay) status = '休息日';
+                else if (daily.clockIn && daily.clockOut) status = '完整';
+
+                return [
+                    daily.date,
+                    clockIn,
+                    clockOut,
+                    workHours,
+                    status
+                ].join(',');
+            })
+        ].join('\n');
+
+        // Add BOM for Excel Chinese support
+        const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+
+        link.setAttribute('href', url);
+        link.setAttribute('download', `考勤记录_${selectedYear}_${selectedMonth}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     const TimeInput: React.FC<{
@@ -366,7 +409,10 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
                             >
                                 添加记录
                             </button>
-                            <button className="bg-primary text-white px-4 md:px-6 py-2 rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 text-sm">
+                            <button
+                                onClick={handleExportCSV}
+                                className="bg-primary text-white px-4 md:px-6 py-2 rounded-xl font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-transform active:scale-95 text-sm"
+                            >
                                 导出 CSV
                             </button>
                         </>
@@ -374,209 +420,223 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
                 </div>
             </div>
 
-            {/* 月份选择器 */}
-            <div className="bg-white dark:bg-[#1c2127] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-4">
-                <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-gray-400">calendar_month</span>
-                        <span className="text-sm font-bold text-gray-500 dark:text-gray-400">查看月份</span>
+            {!selectedUserId ? (
+                <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-[#1c2127] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm text-center">
+                    <div className="size-20 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
+                        <span className="material-symbols-outlined text-4xl text-gray-400">person_search</span>
                     </div>
-                    <div className="flex items-center gap-3">
-                        {/* 上一月按钮 */}
-                        <button
-                            onClick={() => {
-                                if (selectedMonth === 1) {
-                                    setSelectedYear(selectedYear - 1);
-                                    setSelectedMonth(12);
-                                } else {
-                                    setSelectedMonth(selectedMonth - 1);
-                                }
-                            }}
-                            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                            title="上一月"
-                        >
-                            <span className="material-symbols-outlined text-gray-600 dark:text-gray-400">chevron_left</span>
-                        </button>
-                        
-                        {/* 年份选择 */}
-                        <select
-                            value={selectedYear}
-                            onChange={(e) => setSelectedYear(Number(e.target.value))}
-                            className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg font-bold text-sm dark:text-white focus:ring-2 focus:ring-primary/20 focus:outline-none"
-                        >
-                            {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(year => (
-                                <option key={year} value={year}>{year}年</option>
-                            ))}
-                        </select>
-                        
-                        {/* 月份选择 */}
-                        <select
-                            value={selectedMonth}
-                            onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                            className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg font-bold text-sm dark:text-white focus:ring-2 focus:ring-primary/20 focus:outline-none"
-                        >
-                            {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
-                                <option key={month} value={month}>{month}月</option>
-                            ))}
-                        </select>
-                        
-                        {/* 下一月按钮 */}
-                        <button
-                            onClick={() => {
-                                if (selectedMonth === 12) {
-                                    setSelectedYear(selectedYear + 1);
-                                    setSelectedMonth(1);
-                                } else {
-                                    setSelectedMonth(selectedMonth + 1);
-                                }
-                            }}
-                            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                            title="下一月"
-                        >
-                            <span className="material-symbols-outlined text-gray-600 dark:text-gray-400">chevron_right</span>
-                        </button>
-                        
-                        {/* 回到当月按钮 */}
-                        <button
-                            onClick={() => {
-                                const now = new Date();
-                                setSelectedYear(now.getFullYear());
-                                setSelectedMonth(now.getMonth() + 1);
-                            }}
-                            className="ml-2 px-3 py-2 bg-primary/10 text-primary rounded-lg font-bold text-xs hover:bg-primary/20 transition-colors"
-                        >
-                            本月
-                        </button>
-                    </div>
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">请选择员工</h3>
+                    <p className="text-gray-500 dark:text-gray-400 max-w-sm">
+                        请在顶部导航栏选择一位员工，以查看其打卡记录和进行管理操作
+                    </p>
                 </div>
-            </div>
+            ) : (
+                <>
+                    {/* 月份选择器 */}
+                    <div className="bg-white dark:bg-[#1c2127] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-4">
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-2">
+                                <span className="material-symbols-outlined text-gray-400">calendar_month</span>
+                                <span className="text-sm font-bold text-gray-500 dark:text-gray-400">查看月份</span>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                {/* 上一月按钮 */}
+                                <button
+                                    onClick={() => {
+                                        if (selectedMonth === 1) {
+                                            setSelectedYear(selectedYear - 1);
+                                            setSelectedMonth(12);
+                                        } else {
+                                            setSelectedMonth(selectedMonth - 1);
+                                        }
+                                    }}
+                                    className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                    title="上一月"
+                                >
+                                    <span className="material-symbols-outlined text-gray-600 dark:text-gray-400">chevron_left</span>
+                                </button>
 
-            <div className="bg-white dark:bg-[#1c2127] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead>
-                            <tr className="bg-gray-50 dark:bg-[#252b36] border-b border-gray-100 dark:border-gray-800">
-                                {showBatchMode && (
-                                    <th className="px-4 md:px-6 py-4 w-12">
-                                        <input
-                                            type="checkbox"
-                                            onChange={handleSelectAll}
-                                            checked={dailyRecords.length > 0 && selectedDates.size === dailyRecords.length}
-                                            className="rounded border-gray-300 text-primary focus:ring-primary"
-                                        />
-                                    </th>
-                                )}
-                                <th className="px-4 md:px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">日期</th>
-                                <th className="px-4 md:px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">上班打卡</th>
-                                <th className="px-4 md:px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">下班打卡</th>
-                                <th className="px-4 md:px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">工作时长</th>
-                                <th className="px-4 md:px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">状态</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                            {dailyRecords.map((daily) => {
-                                const workHours = !daily.isRestDay && daily.clockIn && daily.clockOut
-                                    ? calculateWorkHours(daily.clockIn.time, daily.clockOut.time)
-                                    : null;
+                                {/* 年份选择 */}
+                                <select
+                                    value={selectedYear}
+                                    onChange={(e) => setSelectedYear(Number(e.target.value))}
+                                    className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg font-bold text-sm dark:text-white focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                                >
+                                    {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                                        <option key={year} value={year}>{year}年</option>
+                                    ))}
+                                </select>
 
-                                return (
-                                    <tr key={daily.date} className="group hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
+                                {/* 月份选择 */}
+                                <select
+                                    value={selectedMonth}
+                                    onChange={(e) => setSelectedMonth(Number(e.target.value))}
+                                    className="px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg font-bold text-sm dark:text-white focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                                >
+                                    {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
+                                        <option key={month} value={month}>{month}月</option>
+                                    ))}
+                                </select>
+
+                                {/* 下一月按钮 */}
+                                <button
+                                    onClick={() => {
+                                        if (selectedMonth === 12) {
+                                            setSelectedYear(selectedYear + 1);
+                                            setSelectedMonth(1);
+                                        } else {
+                                            setSelectedMonth(selectedMonth + 1);
+                                        }
+                                    }}
+                                    className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                    title="下一月"
+                                >
+                                    <span className="material-symbols-outlined text-gray-600 dark:text-gray-400">chevron_right</span>
+                                </button>
+
+                                {/* 回到当月按钮 */}
+                                <button
+                                    onClick={() => {
+                                        const now = new Date();
+                                        setSelectedYear(now.getFullYear());
+                                        setSelectedMonth(now.getMonth() + 1);
+                                    }}
+                                    className="ml-2 px-3 py-2 bg-primary/10 text-primary rounded-lg font-bold text-xs hover:bg-primary/20 transition-colors"
+                                >
+                                    本月
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-[#1c2127] rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead>
+                                    <tr className="bg-gray-50 dark:bg-[#252b36] border-b border-gray-100 dark:border-gray-800">
                                         {showBatchMode && (
-                                            <td className="px-4 md:px-6 py-4">
+                                            <th className="px-4 md:px-6 py-4 w-12">
                                                 <input
                                                     type="checkbox"
-                                                    checked={selectedDates.has(daily.date)}
-                                                    onChange={() => handleSelectOne(daily.date)}
+                                                    onChange={handleSelectAll}
+                                                    checked={dailyRecords.length > 0 && selectedDates.size === dailyRecords.length}
                                                     className="rounded border-gray-300 text-primary focus:ring-primary"
                                                 />
-                                            </td>
+                                            </th>
                                         )}
-                                        <td className="px-4 md:px-6 py-4 font-bold text-sm dark:text-gray-300 whitespace-nowrap">
-                                            {formatDate(daily.date)}
-                                        </td>
-                                        <td className="px-4 md:px-6 py-4">
-                                            {daily.isRestDay ? (
-                                                <div className="flex items-center gap-2">
-                                                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg text-xs font-bold">
-                                                        <span className="material-symbols-outlined text-sm">beach_access</span>
-                                                        休息日
-                                                    </span>
-                                                    {daily.clockIn?.id && (
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleDeleteRecord(daily.date, 'clockIn');
-                                                            }}
-                                                            className="p-1 text-gray-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                                                            type="button"
-                                                            title="删除休息日记录"
-                                                        >
-                                                            <span className="material-symbols-outlined text-sm">close</span>
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            ) : (
-                                                <TimeInput
-                                                    date={daily.date}
-                                                    type="clockIn"
-                                                    value={daily.clockIn?.time}
-                                                    recordId={daily.clockIn?.id}
-                                                />
-                                            )}
-                                        </td>
-                                        <td className="px-4 md:px-6 py-4">
-                                            {daily.isRestDay ? (
-                                                <span className="text-sm text-gray-400">-</span>
-                                            ) : (
-                                                <TimeInput
-                                                    date={daily.date}
-                                                    type="clockOut"
-                                                    value={daily.clockOut?.time}
-                                                    recordId={daily.clockOut?.id}
-                                                />
-                                            )}
-                                        </td>
-                                        <td className="px-4 md:px-6 py-4">
-                                            {daily.isRestDay ? (
-                                                <span className="text-sm text-gray-400">-</span>
-                                            ) : workHours !== null ? (
-                                                <span className="text-sm font-bold text-primary">{workHours.toFixed(1)}h</span>
-                                            ) : (
-                                                <span className="text-sm text-gray-400">-</span>
-                                            )}
-                                        </td>
-                                        <td className="px-4 md:px-6 py-4">
-                                            {daily.isRestDay ? (
-                                                <span className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400">
-                                                    <span className="size-1.5 rounded-full bg-blue-500"></span>
-                                                    休息日
-                                                </span>
-                                            ) : daily.clockIn && daily.clockOut ? (
-                                                <span className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
-                                                    <span className="size-1.5 rounded-full bg-green-500"></span>
-                                                    完整
-                                                </span>
-                                            ) : (
-                                                <span className="flex items-center gap-1.5 text-xs text-orange-600 dark:text-orange-400">
-                                                    <span className="size-1.5 rounded-full bg-orange-500"></span>
-                                                    不完整
-                                                </span>
-                                            )}
-                                        </td>
+                                        <th className="px-4 md:px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">日期</th>
+                                        <th className="px-4 md:px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">上班打卡</th>
+                                        <th className="px-4 md:px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">下班打卡</th>
+                                        <th className="px-4 md:px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">工作时长</th>
+                                        <th className="px-4 md:px-6 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">状态</th>
                                     </tr>
-                                );
-                            })}
-                            {!isLoading && dailyRecords.length === 0 && (
-                                <tr>
-                                    <td colSpan={showBatchMode ? 6 : 5} className="px-6 py-12 text-center text-gray-400 text-sm">
-                                        暂无记录，点击"添加记录"开始添加打卡记录
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                                    {dailyRecords.map((daily) => {
+                                        const workHours = !daily.isRestDay && daily.clockIn && daily.clockOut
+                                            ? calculateWorkHours(daily.clockIn.time, daily.clockOut.time)
+                                            : null;
+
+                                        return (
+                                            <tr key={daily.date} className="group hover:bg-gray-50/50 dark:hover:bg-gray-800/50 transition-colors">
+                                                {showBatchMode && (
+                                                    <td className="px-4 md:px-6 py-4">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedDates.has(daily.date)}
+                                                            onChange={() => handleSelectOne(daily.date)}
+                                                            className="rounded border-gray-300 text-primary focus:ring-primary"
+                                                        />
+                                                    </td>
+                                                )}
+                                                <td className="px-4 md:px-6 py-4 font-bold text-sm dark:text-gray-300 whitespace-nowrap">
+                                                    {formatDate(daily.date)}
+                                                </td>
+                                                <td className="px-4 md:px-6 py-4">
+                                                    {daily.isRestDay ? (
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg text-xs font-bold">
+                                                                <span className="material-symbols-outlined text-sm">beach_access</span>
+                                                                休息日
+                                                            </span>
+                                                            {daily.clockIn?.id && (
+                                                                <button
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleDeleteRecord(daily.date, 'clockIn');
+                                                                    }}
+                                                                    className="p-1 text-gray-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                                                                    type="button"
+                                                                    title="删除休息日记录"
+                                                                >
+                                                                    <span className="material-symbols-outlined text-sm">close</span>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    ) : (
+                                                        <TimeInput
+                                                            date={daily.date}
+                                                            type="clockIn"
+                                                            value={daily.clockIn?.time}
+                                                            recordId={daily.clockIn?.id}
+                                                        />
+                                                    )}
+                                                </td>
+                                                <td className="px-4 md:px-6 py-4">
+                                                    {daily.isRestDay ? (
+                                                        <span className="text-sm text-gray-400">-</span>
+                                                    ) : (
+                                                        <TimeInput
+                                                            date={daily.date}
+                                                            type="clockOut"
+                                                            value={daily.clockOut?.time}
+                                                            recordId={daily.clockOut?.id}
+                                                        />
+                                                    )}
+                                                </td>
+                                                <td className="px-4 md:px-6 py-4">
+                                                    {daily.isRestDay ? (
+                                                        <span className="text-sm text-gray-400">-</span>
+                                                    ) : workHours !== null ? (
+                                                        <span className="text-sm font-bold text-primary">{workHours.toFixed(1)}h</span>
+                                                    ) : (
+                                                        <span className="text-sm text-gray-400">-</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 md:px-6 py-4">
+                                                    {daily.isRestDay ? (
+                                                        <span className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400">
+                                                            <span className="size-1.5 rounded-full bg-blue-500"></span>
+                                                            休息日
+                                                        </span>
+                                                    ) : daily.clockIn && daily.clockOut ? (
+                                                        <span className="flex items-center gap-1.5 text-xs text-green-600 dark:text-green-400">
+                                                            <span className="size-1.5 rounded-full bg-green-500"></span>
+                                                            完整
+                                                        </span>
+                                                    ) : (
+                                                        <span className="flex items-center gap-1.5 text-xs text-orange-600 dark:text-orange-400">
+                                                            <span className="size-1.5 rounded-full bg-orange-500"></span>
+                                                            不完整
+                                                        </span>
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                    {!isLoading && dailyRecords.length === 0 && (
+                                        <tr>
+                                            <td colSpan={showBatchMode ? 6 : 5} className="px-6 py-12 text-center text-gray-400 text-sm">
+                                                暂无记录，点击"添加记录"开始添加打卡记录
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </>
+            )}
 
             {/* 添加打卡记录弹窗 */}
             {showModal && (
@@ -593,7 +653,7 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
                                     className="w-full h-12 bg-gray-50 dark:bg-gray-800 rounded-xl px-4 font-bold dark:text-white border-none focus:ring-2 focus:ring-primary/20"
                                 />
                             </div>
-                            
+
                             {/* 休息日选项 */}
                             <div className="flex items-center gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900 rounded-xl">
                                 <input
@@ -635,7 +695,7 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
                                     </div>
                                 </>
                             )}
-                            
+
                             {modalData.isRestDay && (
                                 <div className="bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-900 rounded-xl p-3">
                                     <p className="text-xs text-green-700 dark:text-green-300">
@@ -669,26 +729,26 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
 function calculateWorkHours(clockIn: string, clockOut: string): number {
     const [inHour, inMin] = clockIn.split(':').map(Number);
     const [outHour, outMin] = clockOut.split(':').map(Number);
-    
+
     const inMinutes = inHour * 60 + inMin;
     const outMinutes = outHour * 60 + outMin;
-    
+
     let totalMinutes = outMinutes - inMinutes;
-    
+
     // 午休扣除逻辑：12:00-13:00
     const lunchStart = 12 * 60; // 12:00 = 720分钟
     const lunchEnd = 13 * 60;   // 13:00 = 780分钟
-    
+
     // 计算工作时间与午休时间的重叠部分
     const overlapStart = Math.max(inMinutes, lunchStart);
     const overlapEnd = Math.min(outMinutes, lunchEnd);
-    
+
     // 如果有重叠，扣除重叠的时间
     if (overlapEnd > overlapStart) {
         const lunchDeduction = overlapEnd - overlapStart;
         totalMinutes -= lunchDeduction;
     }
-    
+
     return totalMinutes / 60;
 }
 
@@ -698,17 +758,17 @@ function formatDate(dateStr: string): string {
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    
+
     const dateOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const yesterdayOnly = new Date(yesterday.getFullYear(), yesterday.getMonth(), yesterday.getDate());
     const targetDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    
+
     if (targetDate.getTime() === dateOnly.getTime()) {
         return '今天 ' + dateStr;
     } else if (targetDate.getTime() === yesterdayOnly.getTime()) {
         return '昨天 ' + dateStr;
     }
-    
+
     const weekdays = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
     return `${dateStr} ${weekdays[date.getDay()]}`;
 }

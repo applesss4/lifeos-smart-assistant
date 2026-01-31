@@ -47,7 +47,7 @@ const AppContent: React.FC = () => {
   // 需求 4.4: 登录成功后重定向到用户原本想访问的页面
   const handleLoginSuccess = useCallback(() => {
     console.log('✅ 登录成功 - 检查重定向目标');
-    
+
     if (intendedRoute && isProtectedRoute(intendedRoute, defaultRouteGuardConfig)) {
       console.log(`🔄 重定向到原本想访问的页面: ${intendedRoute}`);
       setActiveView(intendedRoute);
@@ -69,9 +69,9 @@ const AppContent: React.FC = () => {
       setActiveView('LOGIN');
       return;
     }
-    
+
     setActiveView(view);
-    
+
     // 需求 2.5: 实现基于用户行为的预测预加载
     if (view !== 'LOGIN' && view !== 'SIGNUP') {
       predictivePreload(view);
@@ -104,7 +104,7 @@ const AppContent: React.FC = () => {
         </>
       );
     }
-    
+
     // 默认显示登录页面
     return (
       <>
@@ -119,7 +119,7 @@ const AppContent: React.FC = () => {
 
   const renderView = () => {
     const notify = (message: string) => toast.info(message);
-    
+
     switch (activeView) {
       case ViewType.HOME:
         return (
@@ -139,6 +139,7 @@ const AppContent: React.FC = () => {
             <Tasks onNotify={notify} />
           </ProtectedRoute>
         );
+
       case ViewType.FINANCE:
         return (
           <ProtectedRoute onRedirect={() => handleViewChange('LOGIN')}>
@@ -158,10 +159,10 @@ const AppContent: React.FC = () => {
     <div className="flex flex-col min-h-screen max-w-md mx-auto bg-background-light dark:bg-background-dark relative">
       {/* Offline Indicator */}
       <OfflineIndicator />
-      
+
       {/* Error Monitor (Development Only) */}
       <ErrorMonitor />
-      
+
       {/* Toast Container */}
       <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />
 
