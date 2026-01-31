@@ -104,7 +104,8 @@ const AttendanceView: React.FC<AttendanceViewProps> = ({ selectedUserId }) => {
 
             // 获取指定月份的所有记录
             const startDate = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
-            const endDate = new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0]; // 月份最后一天
+            const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+            const endDate = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
 
             const data = await attendanceService.getAttendanceRecordsByDateRange(startDate, endDate, selectedUserId);
             console.log('AttendanceView: 获取到', data.length, '条打卡记录');

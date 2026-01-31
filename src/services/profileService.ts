@@ -15,7 +15,7 @@ export interface UserProfile {
 export async function getCurrentUserProfile(): Promise<UserProfile | null> {
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    
+
     if (!user) {
       return null;
     }
@@ -43,6 +43,9 @@ export async function getCurrentUserProfile(): Promise<UserProfile | null> {
  */
 export async function getAllUsers(): Promise<UserProfile[]> {
   try {
+    const { data: { user } } = await supabase.auth.getUser();
+    console.log('Current user for getAllUsers:', user?.id, user?.email);
+
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -51,14 +54,15 @@ export async function getAllUsers(): Promise<UserProfile[]> {
     if (error) {
       console.error('获取用户列表失败:', error);
       console.error('错误详情:', JSON.stringify(error, null, 2));
-      return [];
+      // Throw detailed error for UI debugging
+      throw new Error(`Profile Query Failed: ${error.message} (Hint: ${error.hint || 'None'})`);
     }
 
     console.log('成功获取用户列表:', data?.length || 0, '个用户');
     return data || [];
   } catch (error) {
     console.error('获取用户列表异常:', error);
-    return [];
+    throw error; // Re-throw to be caught by component
   }
 }
 
@@ -91,7 +95,7 @@ export async function getUserProfileById(userId: string): Promise<UserProfile | 
 export async function updateUsername(username: string): Promise<boolean> {
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    
+
     if (!user) {
       throw new Error('用户未登录');
     }
@@ -119,7 +123,7 @@ export async function updateUsername(username: string): Promise<boolean> {
 export async function updateAvatarUrl(avatarUrl: string): Promise<boolean> {
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    
+
     if (!user) {
       throw new Error('用户未登录');
     }
